@@ -25,7 +25,7 @@ Install
 1. Install dependencies:
    pip install -r library/requirements.txt
 2. Ensure YOLO weights exist:
-   - library/yolov11/weights/v11_x.pt (provided)
+   - library/yolov11/weights/v11_x.pt (https://github.com/Shohruh72/YOLOv11/releases/download/v1.0.0/v11_x.pt)
 
 Run
 ---
@@ -288,5 +288,6 @@ Scheduling, rollovers and offline handling summary
 - At local 00:00 the service exports daily results and resets daily counters and flags according to the specification.
 - On the first day of a new month at 00:00 the service exports the previous month total and resets the monthly total counter.
 - On startup and before each refresh the service checks if a day or month boundary was crossed while the service was offline and runs the corresponding export and reset for the previous day or month.
+
 
 
