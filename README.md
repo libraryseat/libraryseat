@@ -1,33 +1,32 @@
-Library Backend
+### Library Backend
 ================
 
 FastAPI backend for Library Seat Management with YOLOv11 integration, ROI-based seat mapping, reports, admin anomaly handling, statistics, and daily/monthly rollovers.
 
-Project structure
+### Project structure
 -----------------
-- library/backend: FastAPI application, routes, services, database models, scheduler
-- library/config
+- backend: FastAPI application, routes, services, database models, scheduler
+- config
   - floors: per-floor ROI JSON files to be provided
   - report: uploaded report images directory
   - db.sqlite3: SQLite database (auto-created on first run)
-- library/yolov11: YOLOv11 model code and weights
-- library/outputs
+- yolov11: YOLOv11 model code and weights
+- outputs
   - YYYY-MM-DD/daily_empty.txt: daily export
   - monthly/YYYY-MM.txt: monthly export
 
-Requirements
-------------
-- Python 3.10+
-- PyTorch with CUDA if available (CPU supported but slower)
-
-Install
+### Install
 -------
 1. Install dependencies:
-   pip install -r library/requirements.txt
+```
+    conda create -n YOLO python=3.9 -y
+    conda activate YOLO
+    pip install -r requirements.txt
+```
 2. Ensure YOLO weights exist:
-   - library/yolov11/weights/v11_x.pt (https://github.com/Shohruh72/YOLOv11/releases/download/v1.0.0/v11_x.pt)
+   - yolov11/weights/v11_x.pt (https://github.com/Shohruh72/YOLOv11/releases/download/v1.0.0/v11_x.pt)
 
-Run
+## #Run
 ---
 Start the server:
   uvicorn library.backend.main:app --reload
@@ -38,7 +37,7 @@ On startup:
 - Starts per-floor periodic refresh (default every 60s)
 - Registers daily midnight rollover
 
-Configuration
+### Configuration
 -------------
 Environment variables:
 - REFRESH_INTERVAL_SECONDS: per-floor refresh interval in seconds, default 60
@@ -47,11 +46,11 @@ Environment variables:
 - JWT_EXPIRE_MINUTES: default 120
 
 Directories:
-- library/config/floors: floor ROI JSON files, one per floor, for example F4.json
-- library/config/report: reports image uploads (served under /report)
-- library/outputs: daily and monthly exports
+- config/floors: floor ROI JSON files, one per floor, for example F4.json
+- config/report: reports image uploads (served under /report)
+- outputs: daily and monthly exports
 
-User management
+### User management
 ---------------
 The database is auto-created on first run. Use the CLI to manage users.
 
@@ -67,14 +66,14 @@ Change role:
 List users:
   python -m library.backend.manage_users list
 
-ROI JSON format
+### ROI JSON format
 ---------------
-File location: library/config/floors/<FLOOR_ID>.json
+File location: config/floors/<FLOOR_ID>.json
 
 Example:
 {
   "floor_id": "F4",
-  "stream_path": "library/yolov11/input/per10s.mp4",
+  "stream_path": yolov11/input/per10s.mp4",
   "frame_size": [1920, 1080],
   "seats": [
     {
@@ -90,7 +89,7 @@ Notes:
 - desk_roi is a polygon defined by at least three [x, y] points, in pixels for the original stream resolution
 - The application validates ROI JSON on load and will raise informative errors if invalid
 
-YOLO integration and detection logic
+### YOLO integration and detection logic
 ------------------------------------
 - YOLOv11 model loaded once and reused across refreshes
 - Sampling N frames per refresh (default 16)
@@ -107,13 +106,13 @@ YOLO integration and detection logic
 - Lock behavior:
   - If now < lock_until_ts, statistics are updated but visible state is not changed
 
-Statistics and rollovers
+### Statistics and rollovers
 ------------------------
 - Accumulation:
   - On each refresh, if previous state was empty, add delta seconds to daily_empty_seconds and total_empty_seconds
   - If state changes, increment change_count
 - Daily rollover:
-  - At 00:00 local time export daily_empty_seconds grouped by floor to library/outputs/YYYY-MM-DD/daily_empty.txt
+  - At 00:00 local time export daily_empty_seconds grouped by floor to outputs/YYYY-MM-DD/daily_empty.txt
   - File format:
     - First line: library total empty rate
     - Each floor header line includes floor empty rate
@@ -123,7 +122,7 @@ Statistics and rollovers
     - Clear is_reported, is_malicious, lock_until_ts, occupancy_start_ts
     - Set is_empty=True, last_state_is_empty=True, last_update_ts=now
 - Monthly rollover:
-  - On the first day of the month at 00:00 export previous month total_empty_seconds to library/outputs/monthly/YYYY-MM.txt
+  - On the first day of the month at 00:00 export previous month total_empty_seconds to outputs/monthly/YYYY-MM.txt
   - Header includes library monthly empty rate and per-floor rates
   - Reset total_empty_seconds to 0
 - Offline compensation:
@@ -131,7 +130,7 @@ Statistics and rollovers
     - Run previous date daily export and reset
     - If month changed, also run previous month export and reset
 
-API reference
+### API reference
 -------------
 Authentication
 - POST /auth/login
@@ -178,9 +177,9 @@ Note: All admin endpoints require Bearer token and admin role.
 
 Static files
 - /report
-  - Serves files from library/config/report so images can be accessed by clients
+  - Serves files from config/report so images can be accessed by clients
 
-Color rules
+### Color rules
 -----------
 Seat color for students:
 - Empty with power: #00A1FF
@@ -195,41 +194,13 @@ Floor color:
 - Empty ratio between 0 and 50 percent: #FEAE03
 - Empty ratio equals 0: #FF0000
 
-Notes
+### Notes
 -----
 - Ensure floor ROI JSON matches the camera view and resolution
 - Configure environment variables in production, especially JWT_SECRET_KEY
 - Large models and OpenCV can be CPU intensive without GPU
 
-
-Windows and Conda setup
------------------------
-Option A: Pip and Python already installed
-  python -m venv .venv
-  .venv\Scripts\activate
-  pip install -r library/requirements.txt
-
-Option B: Conda example
-  conda create -n YOLO python=3.9 -y
-  conda activate YOLO
-  pip install -r library/requirements.txt
-If you want GPU acceleration, install PyTorch following the official selector for your CUDA version, then install the remaining requirements.
-
-Environment variables examples
-------------------------------
-PowerShell (current session):
-  $env:REFRESH_INTERVAL_SECONDS="60"
-  $env:JWT_SECRET_KEY="please-change-me"
-  $env:JWT_ALGORITHM="HS256"
-  $env:JWT_EXPIRE_MINUTES="120"
-
-Linux or macOS:
-  export REFRESH_INTERVAL_SECONDS=60
-  export JWT_SECRET_KEY=please-change-me
-  export JWT_ALGORITHM=HS256
-  export JWT_EXPIRE_MINUTES=120
-
-API usage examples
+### API usage examples
 ------------------
 Login and token
   curl -X POST ^
@@ -282,12 +253,13 @@ Lock a seat for 5 minutes:
   curl -X POST -H "Authorization: Bearer YOUR_TOKEN" ^
     "http://localhost:8000/admin/seats/F4-16/lock?minutes=5"
 
-Scheduling, rollovers and offline handling summary
+### Scheduling, rollovers and offline handling summary
 --------------------------------------------------
 - A background scheduler refreshes each floor every REFRESH_INTERVAL_SECONDS seconds. Default is 60.
 - At local 00:00 the service exports daily results and resets daily counters and flags according to the specification.
 - On the first day of a new month at 00:00 the service exports the previous month total and resets the monthly total counter.
 - On startup and before each refresh the service checks if a day or month boundary was crossed while the service was offline and runs the corresponding export and reset for the previous day or month.
+
 
 
 
