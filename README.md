@@ -29,7 +29,9 @@ FastAPI backend for Library Seat Management with YOLOv11 integration, ROI-based 
 ## #Run
 ---
 Start the server:
+```
   uvicorn backend.main:app --reload
+```
 
 On startup:
 - Creates SQLite tables if missing
@@ -53,7 +55,7 @@ Directories:
 ### User management
 ---------------
 The database is auto-created on first run. Use the CLI to manage users.
-
+```
 Create user:
   python -m backend.manage_users create --username admin --password 123456 --role admin
 
@@ -65,11 +67,12 @@ Change role:
 
 List users:
   python -m backend.manage_users list
+```
 
 ### ROI JSON format
 ---------------
 File location: config/floors/<FLOOR_ID>.json
-'''
+```
 Example:
 {
   "floor_id": "F4",
@@ -83,7 +86,7 @@ Example:
     }
   ]
 }
-'''
+```
 
 Notes:
 - frame_size is optional and used for validation only
