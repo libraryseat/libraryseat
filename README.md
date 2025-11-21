@@ -19,9 +19,9 @@ FastAPI backend for Library Seat Management with YOLOv11 integration, ROI-based 
 -------
 1. Install dependencies:
 ```
-    conda create -n YOLO python=3.9 -y
-    conda activate YOLO
-    pip install -r requirements.txt
+conda create -n YOLO python=3.9 -y
+conda activate YOLO
+pip install -r requirements.txt
 ```
 2. Ensure YOLO weights exist:
    - yolov11/weights/v11_x.pt (https://github.com/Shohruh72/YOLOv11/releases/download/v1.0.0/v11_x.pt)
@@ -30,7 +30,7 @@ FastAPI backend for Library Seat Management with YOLOv11 integration, ROI-based 
 ---
 Start the server:
 ```
-  uvicorn backend.main:app --reload
+uvicorn backend.main:app --reload
 ```
 
 On startup:
@@ -57,16 +57,16 @@ Directories:
 The database is auto-created on first run. Use the CLI to manage users.
 ```
 Create user:
-  python -m backend.manage_users create --username admin --password 123456 --role admin
+python -m backend.manage_users create --username admin --password 123456 --role admin
 
 Reset password:
-  python -m backend.manage_users passwd --username admin --password 654321
+python -m backend.manage_users passwd --username admin --password 654321
 
 Change role:
-  python -m backend.manage_users role --username alice --role student
+python -m backend.manage_users role --username alice --role student
 
 List users:
-  python -m backend.manage_users list
+python -m backend.manage_users list
 ```
 
 ### ROI JSON format
