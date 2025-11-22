@@ -33,7 +33,7 @@ def list_anomalies(
 			.first()
 		)
 		base_color = compute_seat_color(s.is_empty, s.has_power)
-		admin_color = compute_admin_color(base_color, s.is_malicious)
+		admin_color = compute_admin_color(base_color, s.is_malicious, s.is_reported)
 		out.append(
 			AnomalyOut(
 				seat_id=s.seat_id,
@@ -77,7 +77,7 @@ def confirm_toggle(report_id: int, db: Session = Depends(get_db)) -> AnomalyOut:
 	db.refresh(seat)
 
 	base_color = compute_seat_color(seat.is_empty, seat.has_power)
-	admin_color = compute_admin_color(base_color, seat.is_malicious)
+	admin_color = compute_admin_color(base_color, seat.is_malicious, seat.is_reported)
 	last_report = (
 		db.query(Report)
 		.filter(Report.seat_id == seat.seat_id)
@@ -112,7 +112,7 @@ def clear_anomaly(seat_id: str, db: Session = Depends(get_db)) -> AnomalyOut:
 	db.refresh(seat)
 
 	base_color = compute_seat_color(seat.is_empty, seat.has_power)
-	admin_color = compute_admin_color(base_color, seat.is_malicious)
+	admin_color = compute_admin_color(base_color, seat.is_malicious, seat.is_reported)
 	last_report = (
 		db.query(Report)
 		.filter(Report.seat_id == seat.seat_id)
@@ -146,7 +146,7 @@ def lock_seat(seat_id: str, minutes: int = 5, db: Session = Depends(get_db)) -> 
 	db.refresh(seat)
 
 	base_color = compute_seat_color(seat.is_empty, seat.has_power)
-	admin_color = compute_admin_color(base_color, seat.is_malicious)
+	admin_color = compute_admin_color(base_color, seat.is_malicious, seat.is_reported)
 	return SeatOut(
 		seat_id=seat.seat_id,
 		floor_id=seat.floor_id,
