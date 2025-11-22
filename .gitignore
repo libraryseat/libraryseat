@@ -1,27 +1,64 @@
-# Miscellaneous
-*.class
-*.log
-*.pyc
-*.swp
+# Python (Backend)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# Database
+*.sqlite
+*.sqlite3
+*.db
+
+# macOS
 .DS_Store
-.atom/
-.build/
-.buildlog/
-.history
-.svn/
-.swiftpm/
-migrate_working_dir/
+.AppleDouble
+.LSOverride
 
-# IntelliJ related
-*.iml
-*.ipr
-*.iws
+# IDE
+.vscode/
 .idea/
+*.swp
+*.swo
+*~
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
+# Logs
+*.log
+
+# Environment variables
+.env
+.env.local
+
+# YOLO weights (too large for git)
+yolov11/weights/*.pt
+!yolov11/weights/.gitkeep
+
+# Input videos (too large)
+input/**/*.mp4
+input/**/*.avi
+input/**/*.mov
+input/**/*.mkv
+
+# Output files (generated)
+outputs/**/*
+!outputs/.gitkeep
+
+# Report images (uploaded by users)
+config/report/**/*
+!config/report/.gitkeep
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
 
 # Flutter/Dart/Pub related
 **/doc/api/
@@ -30,7 +67,6 @@ migrate_working_dir/
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
-/build/
 /coverage/
 
 # Symbolication related
@@ -43,3 +79,13 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Miscellaneous
+*.class
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
