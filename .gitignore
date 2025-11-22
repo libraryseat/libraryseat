@@ -1,4 +1,4 @@
-# Python
+# Python (Backend)
 __pycache__/
 *.py[cod]
 *$py.class
@@ -60,3 +60,32 @@ config/report/**/*
 *.bak
 *.backup
 
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Miscellaneous
+*.class
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
