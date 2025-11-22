@@ -28,13 +28,13 @@ pip install -r requirements.txt
 
 ### Run
 ---
+
+Start the server:
 ```
-#Start the server:
-
 python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
-
-#restart the server:
-
+```
+restart the server:
+```
 uvicorn backend.main:app --reload
 ```
 
@@ -49,12 +49,12 @@ On startup:
 In tools folder
 annatate_roi.py is used to mark the desk_roi
   Operation keys:
-  Left mouse button: Add a point
-  Right mouse button: Remove the last added point
-  Enter: End the current polygon and input seat_id and has_power in the console
-  N: Clear the current polygon and start marking again
-  S: Print and save as JSON
-  Q: Exit
+  -Left mouse button: Add a point
+  -Right mouse button: Remove the last added point
+  -Enter: End the current polygon and input seat_id and has_power in the console
+  -N: Clear the current polygon and start marking again
+  -S: Print and save as JSON
+  -Q: Exit
 ```
 python -m tools.annotate_roi --video input/test/F1.mp4 --floor-id F1 --out config/floors/F1.json
 ```
