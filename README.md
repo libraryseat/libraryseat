@@ -48,13 +48,13 @@ On startup:
 ---
 In tools folder
 annatate_roi.py is used to mark the desk_roi
-  Operation keys:
-  - Left mouse button: Add a point
-  - Right mouse button: Remove the last added point
-  - Enter: End the current polygon and input seat_id and has_power in the console
-  - N: Clear the current polygon and start marking again
-  - S: Print and save as JSON
-  - Q: Exit
+  - Operation keys:
+   - Left mouse button: Add a point
+   - Right mouse button: Remove the last added point
+   - Enter: End the current polygon and input seat_id and has_power in the console
+   - N: Clear the current polygon and start marking again
+   - S: Print and save as JSON
+   - Q: Exit
 ```
 python -m tools.annotate_roi --video input/test/F1.mp4 --floor-id F1 --out config/floors/F1.json
 ```
