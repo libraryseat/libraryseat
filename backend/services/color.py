@@ -14,8 +14,9 @@ def compute_seat_color(is_empty: bool, has_power: bool) -> str:
 	return SEAT_BLUE if has_power else SEAT_GREEN
 
 
-def compute_admin_color(base_color: str, is_malicious: bool) -> str:
-	if is_malicious:
+def compute_admin_color(base_color: str, is_malicious: bool, is_reported: bool = False) -> str:
+	# 如果被举报或标记为恶意，显示黄色
+	if is_malicious or is_reported:
 		return ADMIN_YELLOW
 	return base_color
 

@@ -28,7 +28,7 @@ def list_seats(
 	out: List[SeatOut] = []
 	for s in seats:
 		base_color = compute_seat_color(s.is_empty, s.has_power)
-		admin_color = compute_admin_color(base_color, s.is_malicious)
+		admin_color = compute_admin_color(base_color, s.is_malicious, s.is_reported)
 		out.append(
 			SeatOut(
 				seat_id=s.seat_id,
@@ -54,7 +54,7 @@ def get_seat(
 	if not s:
 		raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="seat not found")
 	base_color = compute_seat_color(s.is_empty, s.has_power)
-	admin_color = compute_admin_color(base_color, s.is_malicious)
+	admin_color = compute_admin_color(base_color, s.is_malicious, s.is_reported)
 	return SeatOut(
 		seat_id=s.seat_id,
 		floor_id=s.floor_id,
@@ -103,7 +103,7 @@ def refresh_floor_endpoint(
 		if s.floor_id != floor:
 			continue
 		base_color = compute_seat_color(s.is_empty, s.has_power)
-		admin_color = compute_admin_color(base_color, s.is_malicious)
+		admin_color = compute_admin_color(base_color, s.is_malicious, s.is_reported)
 		out.append(
 			SeatOut(
 				seat_id=s.seat_id,

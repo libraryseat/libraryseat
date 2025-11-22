@@ -76,6 +76,11 @@ def _open_or_get_video_state(floor_id: str, stream_path: str) -> VideoState:
 
 class YOLODetector:
 	def __init__(self) -> None:
+		# Ensure yolov11 directory is in Python path for nets module import
+		import sys
+		if str(YOLO_DIR) not in sys.path:
+			sys.path.insert(0, str(YOLO_DIR))
+		
 		self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
 		weights_path = YOLO_DIR / "weights" / "yolo11x.pt"
 		ckpt = torch.load(weights_path.as_posix(), map_location=self.device, weights_only=False)

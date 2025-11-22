@@ -1,0 +1,62 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# Database
+*.sqlite
+*.sqlite3
+*.db
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+
+# Environment variables
+.env
+.env.local
+
+# YOLO weights (too large for git)
+yolov11/weights/*.pt
+!yolov11/weights/.gitkeep
+
+# Input videos (too large)
+input/**/*.mp4
+input/**/*.avi
+input/**/*.mov
+input/**/*.mkv
+
+# Output files (generated)
+outputs/**/*
+!outputs/.gitkeep
+
+# Report images (uploaded by users)
+config/report/**/*
+!config/report/.gitkeep
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+
