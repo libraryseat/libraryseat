@@ -56,15 +56,29 @@ annatate_roi.py is used to mark the desk_roi
     - S: Print and save as JSON
     - Q: Exit
 ```
-python -m tools.annotate_roi --video input/test/F1.mp4 --floor-id F1 --out config/floors/F1.json
+python -m tools.annotate_roi --video {video_path} --floor-id F1 --out config/floors/F1.json
 ```
 
 export.py is used to manually generate daily/monthly seat statistics files and save them in the "outputs" folder.
 ```
-python export.py 
+python tools/export.py 
 ```
-
 ---
+
+### Color rules
+-----------
+Seat color for students:
+- Empty with power (blue): #00A1FF
+- Empty without power (green): #60D937
+- Occupied: #929292
+
+Admin overlay:
+- If is_malicious=1(yellow): #FEAE03
+
+Floor color:
+- Empty ratio greater than 50 percent(green): #60D937
+- Empty ratio between 0 and 50 percent(yellow): #FEAE03
+- Empty ratio equals 0(red): #FF0000
 
 ### Configuration
 -------------
@@ -79,87 +93,6 @@ Directories:
 - config/report: reports image uploads (served under /report)
 - outputs: daily and monthly exports
 
-### User management
----------------
-The database is auto-created on first run. Use the CLI to manage users.
-```
-Create user:
-python -m backend.manage_users create --username admin --password 123456 --role admin
-
-Reset password:
-python -m backend.manage_users passwd --username admin --password 654321
-
-Change role:
-python -m backend.manage_users role --username alice --role student
-
-List users:
-python -m backend.manage_users list
-```
-
-### ROI JSON format
----------------
-File location: config/floors/<FLOOR_ID>.json
-```
-Example:
-{
-  "floor_id": "F4",
-  "stream_path": yolov11/input/per10s.mp4",
-  "frame_size": [1920, 1080],
-  "seats": [
-    {
-      "seat_id": "F4-16",
-      "has_power": 1,
-      "desk_roi": [[510,260],[620,260],[620,330],[510,330]]
-    }
-  ]
-}
-```
-
-Notes:
-- frame_size is optional and used for validation only
-- desk_roi is a polygon defined by at least three [x, y] points, in pixels for the original stream resolution
-- The application validates ROI JSON on load and will raise informative errors if invalid
-
-### YOLO integration and detection logic
-------------------------------------
-- YOLOv11 model loaded once and reused across refreshes
-- Sampling N frames per refresh (default 16)
-- For each seat, consider detection box center points that fall inside the seat desk_roi
-- Categories:
-  - person: considered occupied
-  - object categories: backpack, handbag, suitcase, book, laptop, cell phone, mouse, keyboard, bottle, cup, umbrella (treated as object)
-- Presence threshold:
-  - Ratio of frames with hit >= 0.3 marks presence for that category
-- Seat state:
-  - Occupied if person or object present, otherwise empty
-- Malicious occupancy:
-  - If only object present without person for at least 7200 seconds, mark seat is_malicious=1 (admin view shows yellow)
-- Lock behavior:
-  - If now < lock_until_ts, statistics are updated but visible state is not changed
-
-### Statistics and rollovers
-------------------------
-- Accumulation:
-  - On each refresh, if previous state was empty, add delta seconds to daily_empty_seconds and total_empty_seconds
-  - If state changes, increment change_count
-- Daily rollover:
-  - At 00:00 local time export daily_empty_seconds grouped by floor to outputs/YYYY-MM-DD/daily_empty.txt
-  - File format:
-    - First line: library total empty rate
-    - Each floor header line includes floor empty rate
-    - Each seat line: seat_id and time formatted as XXhXXminXXs
-  - After export:
-    - Reset daily_empty_seconds to 0
-    - Clear is_reported, is_malicious, lock_until_ts, occupancy_start_ts
-    - Set is_empty=True, last_state_is_empty=True, last_update_ts=now
-- Monthly rollover:
-  - On the first day of the month at 00:00 export previous month total_empty_seconds to outputs/monthly/YYYY-MM.txt
-  - Header includes library monthly empty rate and per-floor rates
-  - Reset total_empty_seconds to 0
-- Offline compensation:
-  - On startup and before each refresh, if current date or month differs from the earliest nonzero last_update_ts across seats:
-    - Run previous date daily export and reset
-    - If month changed, also run previous month export and reset
 
 ### API reference
 -------------
@@ -209,27 +142,6 @@ Note: All admin endpoints require Bearer token and admin role.
 Static files
 - /report
   - Serves files from config/report so images can be accessed by clients
-
-### Color rules
------------
-Seat color for students:
-- Empty with power (blue): #00A1FF
-- Empty without power (green): #60D937
-- Occupied: #929292
-
-Admin overlay:
-- If is_malicious=1(yellow): #FEAE03
-
-Floor color:
-- Empty ratio greater than 50 percent(green): #60D937
-- Empty ratio between 0 and 50 percent(yellow): #FEAE03
-- Empty ratio equals 0(red): #FF0000
-
-### Notes
------
-- Ensure floor ROI JSON matches the camera view and resolution
-- Configure environment variables in production, especially JWT_SECRET_KEY
-- Large models and OpenCV can be CPU intensive without GPU
 
 ### API usage examples
 ------------------
@@ -292,5 +204,20 @@ Lock a seat for 5 minutes:
 - On startup and before each refresh the service checks if a day or month boundary was crossed while the service was offline and runs the corresponding export and reset for the previous day or month.
 
 
+### Test:User management
+---------------
+The database is auto-created on first run. Use the CLI to manage users.
+```
+Create user:
+python -m backend.manage_users create --username admin --password 123456 --role admin
 
+Reset password:
+python -m backend.manage_users passwd --username admin --password 654321
+
+Change role:
+python -m backend.manage_users role --username alice --role student
+
+List users:
+python -m backend.manage_users list
+```
 
