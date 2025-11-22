@@ -26,10 +26,15 @@ pip install -r requirements.txt
 2. Ensure YOLO weights exist:
    - yolov11/weights/yolo11x.pt (https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11x.pt)
 
-## #Run
+### Run
 ---
-Start the server:
 ```
+#Start the server:
+
+python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+
+#restart the server:
+
 uvicorn backend.main:app --reload
 ```
 
@@ -38,6 +43,28 @@ On startup:
 - Mounts static report directory at /report
 - Starts per-floor periodic refresh (default every 60s)
 - Registers daily midnight rollover
+
+### Tools
+---
+In tools folder
+annatate_roi.py is used to mark the desk_roi
+  Operation keys:
+  Left mouse button: Add a point
+  Right mouse button: Remove the last added point
+  Enter: End the current polygon and input seat_id and has_power in the console
+  N: Clear the current polygon and start marking again
+  S: Print and save as JSON
+  Q: Exit
+```
+python -m tools.annotate_roi --video input/test/F1.mp4 --floor-id F1 --out config/floors/F1.json
+```
+
+export.py is used to manually generate daily/monthly seat statistics files and save them in the "outputs" folder.
+```
+python export.py 
+```
+
+---
 
 ### Configuration
 -------------
