@@ -49,13 +49,11 @@ class _FloorMapPageState extends State<FloorMapPage> {
       'F3-07': const Offset(130, 400),
     },
     'F2': {
-      'F2-01': const Offset(80, 200),
-      'F2-02': const Offset(180, 200),
-      'F2-03': const Offset(80, 280),
-      'F2-04': const Offset(180, 280),
-      'F2-05': const Offset(110, 450),
-      'F2-06': const Offset(190, 450),
-      'F2-07': const Offset(150, 530),
+      // F2: 两排布局，每排2个座位，中间有圆桌
+      'F2-01': const Offset(80, 450),   // 下排左（无电源）
+      'F2-02': const Offset(320, 450),  // 下排右（有电源）
+      'F2-03': const Offset(80, 250),  // 上排左（无电源）
+      'F2-04': const Offset(320, 250),  // 上排右（无电源）
     },
     'F1': {
       'F1-01': const Offset(110, 100),
@@ -93,13 +91,11 @@ class _FloorMapPageState extends State<FloorMapPage> {
       Seat(id: 'F3-07', status: 'empty', top: 400, left: 130),
     ],
     [
-      Seat(id: 'F2-01', status: 'empty', top: 200, left: 80),
-      Seat(id: 'F2-02', status: 'empty', top: 200, left: 180),
-      Seat(id: 'F2-03', status: 'empty', top: 280, left: 80),
-      Seat(id: 'F2-04', status: 'empty', top: 280, left: 180),
-      Seat(id: 'F2-05', status: 'empty', top: 450, left: 110),
-      Seat(id: 'F2-06', status: 'empty', top: 450, left: 190),
-      Seat(id: 'F2-07', status: 'empty', top: 530, left: 150),
+      // F2: 两排布局，每排2个座位
+      Seat(id: 'F2-01', status: 'empty', top: 450, left: 80),   // 下排左（无电源）
+      Seat(id: 'F2-02', status: 'empty', top: 450, left: 320),  // 下排右（有电源）
+      Seat(id: 'F2-03', status: 'empty', top: 250, left: 80),  // 上排左（无电源）
+      Seat(id: 'F2-04', status: 'empty', top: 250, left: 320), // 上排右（无电源）
     ],
     [
       Seat(id: 'F1-01', status: 'occupied', top: 100, left: 110),
@@ -233,10 +229,16 @@ class _FloorMapPageState extends State<FloorMapPage> {
           Positioned(top: 240, left: 90, child: _buildTableRect(width: 120, height: 60)),
           Positioned(top: 390, left: 90, child: _buildTableRect(width: 120, height: 60)),
         ];
-      case 1:
+      case 1: // F2: 两排布局，每排2个座位，中间有圆桌
         return [
-          Positioned(top: 150, left: 30, child: _buildTableRect(width: 240, height: 50)),
-          Positioned(top: 280, left: 30, child: _buildTableRect(width: 240, height: 50)),
+          // 上排长桌：位于上排两个座位前方（座位在top: 250，桌子在top: 200）
+          Positioned(top: 200, left: 50, child: _buildTableRect(width: 120, height: 40)),
+          Positioned(top: 200, left: 290, child: _buildTableRect(width: 120, height: 40)),
+          // 下排长桌：位于下排两个座位前方（座位在top: 450，桌子在top: 400）
+          Positioned(top: 400, left: 50, child: _buildTableRect(width: 120, height: 40)),
+          Positioned(top: 400, left: 290, child: _buildTableRect(width: 120, height: 40)),
+          // 中间圆桌：位于上下排之间，避免与长桌重叠
+          Positioned(top: 320, left: 200, child: _buildTableCircle(size: 100)),
         ];
       case 2:
         return [

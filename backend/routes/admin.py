@@ -67,10 +67,20 @@ def confirm_toggle(report_id: int, db: Session = Depends(get_db)) -> AnomalyOut:
 	if not seat:
 		raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="seat not found")
 
-	# 取对色：若当前(管理员端)非黄 -> 标黄；若已黄 -> 变回底色（清黄）
-	new_is_malicious = not seat.is_malicious
-	seat.is_malicious = new_is_malicious
-	r.status = "confirmed" if new_is_malicious else "dismissed"
+	# 确认异常的逻辑：
+	# - 如果当前是恶意（黄色），确认后应该清除恶意标记，座位变为空闲（绿色/蓝色）
+	# - 如果当前不是恶意，确认后标记为恶意（黄色）
+	if seat.is_malicious:
+		# 确认异常：清除恶意标记，座位变为空闲状态
+		seat.is_malicious = False
+		seat.is_reported = False  # 清除举报标记
+		seat.is_empty = True  # 确认异常后，座位应该是空的
+		r.status = "confirmed"
+	else:
+		# 标记为恶意
+		seat.is_malicious = True
+		r.status = "confirmed"
+	
 	db.add(seat)
 	db.add(r)
 	db.commit()
@@ -103,8 +113,10 @@ def clear_anomaly(seat_id: str, db: Session = Depends(get_db)) -> AnomalyOut:
 	if not seat:
 		raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="seat not found")
 
+	# 删除异常：说明有人正在坐，恢复为占用状态（灰色）
 	seat.is_reported = False
 	seat.is_malicious = False
+	seat.is_empty = False  # 删除异常说明有人正在坐，所以是占用状态
 	# optional: set all pending reports to dismissed
 	db.query(Report).filter(Report.seat_id == seat_id, Report.status == "pending").update({"status": "dismissed"})
 	db.add(seat)

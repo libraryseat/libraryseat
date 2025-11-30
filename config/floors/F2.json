@@ -1,6 +1,6 @@
 {
   "floor_id": "F2",
-  "stream_path": "input\\test\\F2.mp4",
+  "stream_path": "input/test/F2.mp4",
   "frame_size": [
     1920,
     1080

@@ -43,9 +43,9 @@ def create_app() -> FastAPI:
 	@app.on_event("startup")
 	def on_startup():
 		Base.metadata.create_all(bind=engine)
-		# start scheduler
+		# 创建调度器但不立即启动，等待用户登录
 		app.state.scheduler = FloorRefreshScheduler()
-		app.state.scheduler.start()
+		app.state.scheduler_started = False
 
 	@app.on_event("shutdown")
 	def on_shutdown():

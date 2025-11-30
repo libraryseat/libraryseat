@@ -4,6 +4,7 @@ class ApiConfig {
   // static const String baseUrl = 'http://localhost:8000';
   
   // 真机测试使用局域网 IP（根据你的 Mac IP 修改）
-  static const String baseUrl = 'http://192.168.1.105:8000';
+  // 当前 Mac IP: 192.168.1.109
+  static const String baseUrl = 'http://192.168.1.109:8000';
 }
 

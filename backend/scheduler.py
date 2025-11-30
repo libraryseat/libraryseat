@@ -18,7 +18,7 @@ logger = logging.getLogger("scheduler")
 
 class FloorRefreshScheduler:
 	def __init__(self, interval_seconds: Optional[int] = None) -> None:
-		self.interval_seconds = interval_seconds or int(os.getenv("REFRESH_INTERVAL_SECONDS", "60"))
+		self.interval_seconds = interval_seconds or int(os.getenv("REFRESH_INTERVAL_SECONDS", "5"))
 		self.scheduler = BackgroundScheduler()
 		self.started = False
 

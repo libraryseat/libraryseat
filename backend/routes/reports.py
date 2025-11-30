@@ -39,11 +39,15 @@ def _save_report_images(report_id: int, files: Optional[List[UploadFile]]) -> Li
 @router.post("/reports", response_model=ReportOut)
 def create_report(
 	seat_id: str = Form(...),
-	reporter_id: int = Form(...),
+	reporter_id: str = Form(...),  # 改为 str，然后转换为 int
 	text: Optional[str] = Form(default=None),
 	images: Optional[List[UploadFile]] = File(default=None),
 	db: Session = Depends(get_db),
 ) -> ReportOut:
+	try:
+		reporter_id_int = int(reporter_id)
+	except (ValueError, TypeError):
+		raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid reporter_id: must be an integer")
 	seat = db.query(Seat).filter(Seat.seat_id == seat_id).first()
 	if not seat:
 		raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="seat_id not found")
@@ -51,7 +55,7 @@ def create_report(
 	now = int(time.time())
 	report = Report(
 		seat_id=seat_id,
-		reporter_id=reporter_id,
+		reporter_id=reporter_id_int,  # 使用转换后的整数
 		text=text,
 		images=[],
 		status="pending",

@@ -11,7 +11,7 @@ import numpy as np
 import torch
 from sqlalchemy.orm import Session
 
-from ..models import Seat
+from ..models import Seat, Report, User
 from .rollover import perform_rollovers_if_needed
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -313,22 +313,92 @@ def refresh_floor(db: Session, floor_cfg: Dict[str, Any], sample_frames: int = 1
 		seat.last_update_ts = now
 
 		# Update occupancy timer for malicious detection (object only)
+		# 注意：这个计时器应该在锁定状态下也继续工作，以便检测恶意占用
 		if object_present and not person_present:
 			if seat.occupancy_start_ts == 0:
 				seat.occupancy_start_ts = now
 		else:
-			seat.occupancy_start_ts = 0
+			# 如果检测到人员或没有物品，重置计时器
+			# 但如果座位已经被标记为恶意，且没有人员，保持计时器继续
+			# 只有在检测到人员时才重置
+			if person_present:
+				seat.occupancy_start_ts = 0
+				# 如果检测到人员，清除恶意标记
+				if seat.is_malicious:
+					seat.is_malicious = False
+
+		# 检测恶意占用（无论是否锁定，都要检测）
+		was_malicious = seat.is_malicious
+		if seat.occupancy_start_ts and (now - seat.occupancy_start_ts) >= 7200:
+			seat.is_malicious = True
+			# 如果从非恶意变为恶意，自动创建系统警报报告
+			if not was_malicious and seat.is_malicious:
+				_create_system_alert_report(db, seat, now)
 
 		# Apply visual state only if not locked
 		if now >= seat.lock_until_ts:
 			seat.is_empty = new_observed_is_empty
-			# Malicious after 2h (7200s)
-			if seat.occupancy_start_ts and (now - seat.occupancy_start_ts) >= 7200:
-				seat.is_malicious = True
 
 		db.add(seat)
 
 	db.commit()
 	return list(existing.values())
+
+
+def _create_system_alert_report(db: Session, seat: Seat, now_ts: int) -> None:
+	"""
+	当检测到疑似占座（is_malicious）时，自动创建系统警报报告。
+	这个报告和用户举报一样，只是由系统自动生成。
+	"""
+	# 获取或创建系统用户
+	from ..auth import get_password_hash
+	system_user = db.query(User).filter(User.username == "system").first()
+	if not system_user:
+		# 创建系统用户（如果不存在）
+		system_user = User(
+			username="system",
+			pass_hash=get_password_hash("system"),  # 系统用户不需要登录
+			role="admin",
+		)
+		db.add(system_user)
+		db.flush()
+		db.refresh(system_user)
+	
+	# 检查是否已经有未处理的系统报告（避免重复创建）
+	# 查找最近24小时内的系统报告
+	recent_threshold = now_ts - 86400  # 24小时前
+	existing_report = (
+		db.query(Report)
+		.filter(Report.seat_id == seat.seat_id)
+		.filter(Report.status == "pending")
+		.filter(Report.reporter_id == system_user.id)  # 系统用户ID
+		.filter(Report.created_at >= recent_threshold)
+		.order_by(Report.created_at.desc())
+		.first()
+	)
+	
+	# 如果已经有未处理的系统报告，确保 is_reported 状态正确，然后返回
+	if existing_report:
+		# 确保座位状态与报告状态同步
+		if not seat.is_reported:
+			seat.is_reported = True
+			db.add(seat)
+		return
+	
+	# 创建系统警报报告
+	report = Report(
+		seat_id=seat.seat_id,
+		reporter_id=system_user.id,  # 使用系统用户的ID
+		text="系统自动检测：检测到疑似占座行为（物品占用超过2小时，未检测到人员）",
+		images=[],
+		status="pending",
+		created_at=now_ts,
+	)
+	db.add(report)
+	db.flush()
+	
+	# 更新座位的 is_reported 状态
+	seat.is_reported = True
+	db.add(seat)
 
 
