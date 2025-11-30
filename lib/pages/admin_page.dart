@@ -42,12 +42,102 @@ class _AdminPageState extends State<AdminPage> {
   Set<String> _selectedSeats = {};
   bool _loading = false;
   Locale _currentLocale = const Locale('en');
+  
+  // F3和F4的伪数据（与FloorMapPage保持一致）
+  List<Seat> _mockF3Seats = [];
+  List<Seat> _mockF4Seats = [];
 
   @override
   void initState() {
     super.initState();
     _initDio();
+    _initializeMockData();
     _loadAnomalies();
+  }
+  
+  // 初始化F3和F4的伪数据（与FloorMapPage保持一致）
+  void _initializeMockData() {
+    // F3: 7个座位，初始状态
+    _mockF3Seats = [
+      Seat(id: 'F3-01', status: 'empty', top: 150, left: 80),
+      Seat(id: 'F3-02', status: 'has_power', top: 150, left: 200),
+      Seat(id: 'F3-03', status: 'occupied', top: 300, left: 80),
+      Seat(id: 'F3-04', status: 'empty', top: 300, left: 200),
+      Seat(id: 'F3-05', status: 'has_power', top: 500, left: 80),
+      Seat(id: 'F3-06', status: 'occupied', top: 500, left: 200),
+      Seat(id: 'F3-07', status: 'empty', top: 350, left: 350),
+    ];
+    
+    // F4: 8个座位，初始状态
+    _mockF4Seats = [
+      Seat(id: 'F4-01', status: 'has_power', top: 120, left: 80),
+      Seat(id: 'F4-02', status: 'occupied', top: 120, left: 200),
+      Seat(id: 'F4-03', status: 'empty', top: 120, left: 320),
+      Seat(id: 'F4-04', status: 'occupied', top: 280, left: 80),
+      Seat(id: 'F4-05', status: 'has_power', top: 280, left: 320),
+      Seat(id: 'F4-06', status: 'empty', top: 480, left: 80),
+      Seat(id: 'F4-07', status: 'has_power', top: 480, left: 200),
+      Seat(id: 'F4-08', status: 'suspicious', top: 480, left: 320),
+    ];
+  }
+  
+  // 将伪数据中的suspicious座位转换为AnomalyResponse
+  List<AnomalyResponse> _getMockAnomalies() {
+    final mockAnomalies = <AnomalyResponse>[];
+    
+    // 检查F3的伪数据
+    for (var seat in _mockF3Seats) {
+      if (seat.status == 'suspicious') {
+        // 根据座位ID判断是否有电源（与FloorMapPage的硬编码逻辑保持一致）
+        final hasPower = _getSeatHasPower(seat.id);
+        mockAnomalies.add(AnomalyResponse(
+          seatId: seat.id,
+          floorId: 'F3',
+          hasPower: hasPower,
+          isEmpty: false, // suspicious状态表示被占用，所以不是空的
+          isReported: false,
+          isMalicious: true,
+          seatColor: hasPower ? '#00A1FF' : '#60D937', // 如果有电源是蓝色，否则是绿色
+          adminColor: '#FEAE03', // 黄色
+          lastReportId: null, // 伪数据没有报告ID
+        ));
+      }
+    }
+    
+    // 检查F4的伪数据
+    for (var seat in _mockF4Seats) {
+      if (seat.status == 'suspicious') {
+        // 根据座位ID判断是否有电源
+        final hasPower = _getSeatHasPower(seat.id);
+        mockAnomalies.add(AnomalyResponse(
+          seatId: seat.id,
+          floorId: 'F4',
+          hasPower: hasPower,
+          isEmpty: false, // suspicious状态表示被占用，所以不是空的
+          isReported: false,
+          isMalicious: true,
+          seatColor: hasPower ? '#00A1FF' : '#60D937', // 如果有电源是蓝色，否则是绿色
+          adminColor: '#FEAE03', // 黄色
+          lastReportId: null, // 伪数据没有报告ID
+        ));
+      }
+    }
+    
+    return mockAnomalies;
+  }
+  
+  // 根据座位ID判断是否有电源（与FloorMapPage的逻辑保持一致）
+  bool _getSeatHasPower(String seatId) {
+    // F3和F4的电源配置（根据实际需求调整）
+    // 这里假设F4-08没有电源，如果需要可以修改
+    if (seatId.startsWith('F3')) {
+      // F3的电源配置
+      return seatId == 'F3-02' || seatId == 'F3-05';
+    } else if (seatId.startsWith('F4')) {
+      // F4的电源配置
+      return seatId == 'F4-01' || seatId == 'F4-05' || seatId == 'F4-07';
+    }
+    return false;
   }
 
   void _initDio() {
@@ -73,18 +163,34 @@ class _AdminPageState extends State<AdminPage> {
     setState(() => _loading = true);
     try {
       final anomalies = await _apiService.getAnomalies();
+      // 获取伪数据的异常
+      final mockAnomalies = _getMockAnomalies();
+      // 合并后端异常和伪数据异常
+      final allAnomalies = [...anomalies, ...mockAnomalies];
       // 按楼层排序（F1, F2, F3, F4）
-      anomalies.sort((a, b) => a.floorId.compareTo(b.floorId));
+      allAnomalies.sort((a, b) => a.floorId.compareTo(b.floorId));
       setState(() {
-        _anomalies = anomalies;
-        _filteredAnomalies = anomalies;
-        _selectedSeats = anomalies
+        _anomalies = allAnomalies;
+        _filteredAnomalies = allAnomalies;
+        _selectedSeats = allAnomalies
             .where((a) => a.isMalicious)
             .map((a) => a.seatId)
             .toSet()
             .cast<String>();
       });
     } catch (e) {
+      // 即使后端失败，也显示伪数据异常
+      final mockAnomalies = _getMockAnomalies();
+      mockAnomalies.sort((a, b) => a.floorId.compareTo(b.floorId));
+      setState(() {
+        _anomalies = mockAnomalies;
+        _filteredAnomalies = mockAnomalies;
+        _selectedSeats = mockAnomalies
+            .where((a) => a.isMalicious)
+            .map((a) => a.seatId)
+            .toSet()
+            .cast<String>();
+      });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to load anomalies: $e')),
@@ -111,6 +217,15 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   Future<void> _toggleAnomaly(AnomalyResponse anomaly) async {
+    // 检查是否是伪数据（F3或F4，且没有报告ID）
+    final isMockData = (anomaly.floorId == 'F3' || anomaly.floorId == 'F4') && anomaly.lastReportId == null;
+    
+    if (isMockData) {
+      // 处理伪数据的确认
+      _handleMockAnomalyConfirm(anomaly);
+      return;
+    }
+    
     if (anomaly.lastReportId == null) return;
 
     setState(() => _loading = true);
@@ -146,8 +261,95 @@ class _AdminPageState extends State<AdminPage> {
       setState(() => _loading = false);
     }
   }
+  
+  // 处理伪数据的确认异常
+  void _handleMockAnomalyConfirm(AnomalyResponse anomaly) {
+    setState(() {
+      // 更新伪数据状态：确认异常后，座位变为空闲（绿色/蓝色）
+      if (anomaly.floorId == 'F3') {
+        final index = _mockF3Seats.indexWhere((s) => s.id == anomaly.seatId);
+        if (index != -1) {
+          // 确认异常后，座位变为空闲（根据是否有电源决定颜色）
+          final hasPower = _getSeatHasPower(anomaly.seatId);
+          _mockF3Seats[index] = Seat(
+            id: anomaly.seatId,
+            status: hasPower ? 'has_power' : 'empty',
+            top: _mockF3Seats[index].top,
+            left: _mockF3Seats[index].left,
+          );
+        }
+      } else if (anomaly.floorId == 'F4') {
+        final index = _mockF4Seats.indexWhere((s) => s.id == anomaly.seatId);
+        if (index != -1) {
+          final hasPower = _getSeatHasPower(anomaly.seatId);
+          _mockF4Seats[index] = Seat(
+            id: anomaly.seatId,
+            status: hasPower ? 'has_power' : 'empty',
+            top: _mockF4Seats[index].top,
+            left: _mockF4Seats[index].left,
+          );
+        }
+      }
+      
+      // 重新加载异常列表
+      _loadAnomalies();
+    });
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Anomaly confirmed (mock data)')),
+      );
+    }
+  }
+  
+  // 处理伪数据的删除异常
+  void _handleMockAnomalyDelete(AnomalyResponse anomaly) {
+    setState(() {
+      // 更新伪数据状态：删除异常后，座位变为占用（灰色）
+      if (anomaly.floorId == 'F3') {
+        final index = _mockF3Seats.indexWhere((s) => s.id == anomaly.seatId);
+        if (index != -1) {
+          _mockF3Seats[index] = Seat(
+            id: anomaly.seatId,
+            status: 'occupied',
+            top: _mockF3Seats[index].top,
+            left: _mockF3Seats[index].left,
+          );
+        }
+      } else if (anomaly.floorId == 'F4') {
+        final index = _mockF4Seats.indexWhere((s) => s.id == anomaly.seatId);
+        if (index != -1) {
+          _mockF4Seats[index] = Seat(
+            id: anomaly.seatId,
+            status: 'occupied',
+            top: _mockF4Seats[index].top,
+            left: _mockF4Seats[index].left,
+          );
+        }
+      }
+      
+      // 重新加载异常列表
+      _loadAnomalies();
+    });
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Anomaly deleted (mock data)')),
+      );
+    }
+  }
 
   Future<void> _deleteAnomaly(AnomalyResponse anomaly) async {
+    // 检查是否是伪数据（F3或F4，且没有报告ID）
+    final isMockData = (anomaly.floorId == 'F3' || anomaly.floorId == 'F4') && anomaly.lastReportId == null;
+    
+    if (isMockData) {
+      // 处理伪数据的删除
+      _handleMockAnomalyDelete(anomaly);
+      return;
+    }
+    
+    // 原有的删除逻辑（后端数据）
     setState(() => _loading = true);
     try {
       await _apiService.clearAnomaly(anomaly.seatId);
@@ -222,8 +424,8 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   Future<void> _showReportDetails(AnomalyResponse anomaly) async {
+    // 伪数据没有报告详情，只显示基本信息
     if (anomaly.lastReportId == null) {
-      // 如果没有报告，只显示基本信息
       if (!mounted) return;
       _showAnomalyInfoDialog(anomaly);
       return;
