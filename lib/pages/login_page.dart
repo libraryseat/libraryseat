@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/api_config.dart';
+import '../models/seat_model.dart';
+import '../utils/translations.dart';
 import 'floor_map_page.dart';
 import 'admin_page.dart';
 
@@ -215,75 +217,281 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  String t(String key) {
+    final locale = Localizations.localeOf(context);
+    String languageCode = locale.languageCode;
+    if (languageCode == 'zh') {
+      languageCode = locale.countryCode == 'TW' ? 'zh_TW' : 'zh';
+    }
+    return AppTranslations.get(key, languageCode);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_isRegisterMode ? 'Register' : 'Login'),
-        centerTitle: true,
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            TextField(
-              controller: _idController,
-              decoration: InputDecoration(
-                labelText: 'User ID',
-                prefixIcon: const Icon(Icons.person),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              keyboardType: TextInputType.text,
-              textInputAction: TextInputAction.next,
-              onSubmitted: (_) => FocusScope.of(context).nextFocus(),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _pwdController,
-              decoration: InputDecoration(
-                labelText: 'Password',
-                prefixIcon: const Icon(Icons.lock),
-                suffixIcon: IconButton(
-                  icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility),
-                  onPressed: () => setState(() => _obscure = !_obscure),
+      backgroundColor: AdminColors.pageBackground, // 使用与管理员界面一致的背景色
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 40.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 40),
+                // Logo/标题区域
+                Column(
+                  children: [
+                    Container(
+                      width: 100,
+                      height: 100,
+                      decoration: BoxDecoration(
+                        color: AppColors.green.withOpacity(0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.library_books,
+                        size: 50,
+                        color: AppColors.green,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      t('library_seat_management') ?? 'Library Seat Management',
+                      style: const TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                        letterSpacing: 0.5,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _isRegisterMode 
+                          ? (t('register_prompt') ?? 'Create a new account')
+                          : (t('login_prompt') ?? 'Sign in to continue'),
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w400,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
                 ),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              obscureText: _obscure,
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => _isRegisterMode ? _register() : _login(),
+                const SizedBox(height: 48),
+                // 输入框区域
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: AdminColors.listItemBackground, // 使用与管理员界面一致的列表背景色
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      TextField(
+                        controller: _idController,
+                        decoration: InputDecoration(
+                          labelText: t('user_id') ?? 'User ID',
+                          hintText: t('user_id') ?? 'User ID',
+                          prefixIcon: const Icon(Icons.person_outline, color: Colors.grey),
+                          filled: true,
+                          fillColor: Colors.white,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey[300]!),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey[300]!),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: AppColors.green, width: 2),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                        ),
+                        keyboardType: TextInputType.text,
+                        textInputAction: TextInputAction.next,
+                        onSubmitted: (_) => FocusScope.of(context).nextFocus(),
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                      const SizedBox(height: 20),
+                      TextField(
+                        controller: _pwdController,
+                        decoration: InputDecoration(
+                          labelText: t('password') ?? 'Password',
+                          hintText: t('password') ?? 'Password',
+                          prefixIcon: const Icon(Icons.lock_outline, color: Colors.grey),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscure ? Icons.visibility_off : Icons.visibility,
+                              color: Colors.grey[600],
+                            ),
+                            onPressed: () => setState(() => _obscure = !_obscure),
+                          ),
+                          filled: true,
+                          fillColor: Colors.white,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey[300]!),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey[300]!),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: AppColors.green, width: 2),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                        ),
+                        obscureText: _obscure,
+                        textInputAction: TextInputAction.done,
+                        onSubmitted: (_) => _isRegisterMode ? _register() : _login(),
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 32),
+                // 登录/注册按钮
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: _loading ? null : (_isRegisterMode ? _register : _login),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.green,
+                      foregroundColor: Colors.white,
+                      elevation: 2,
+                      shadowColor: AppColors.green.withOpacity(0.3),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: _loading
+                        ? const SizedBox(
+                            height: 24,
+                            width: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : Text(
+                            _isRegisterMode 
+                                ? (t('register') ?? 'Register')
+                                : (t('login') ?? 'Login'),
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                // 切换登录/注册模式
+                TextButton(
+                  onPressed: _loading ? null : () {
+                    setState(() {
+                      _isRegisterMode = !_isRegisterMode;
+                      _idController.clear();
+                      _pwdController.clear();
+                    });
+                  },
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  ),
+                  child: Text(
+                    _isRegisterMode 
+                        ? (t('login_prompt') ?? 'Already have an account? Login')
+                        : (t('register_prompt') ?? 'Don\'t have an account? Register'),
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: Colors.grey[700],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                // 语言选择
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.language, size: 18, color: Colors.grey[600]),
+                    const SizedBox(width: 8),
+                    PopupMenuButton<String>(
+                      icon: Text(
+                        _getCurrentLanguageLabel(),
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[700],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      onSelected: (value) {
+                        if (widget.onLocaleChange != null) {
+                          Locale locale;
+                          switch (value) {
+                            case 'en':
+                              locale = const Locale('en');
+                              break;
+                            case 'zh_CN':
+                              locale = const Locale('zh', 'CN');
+                              break;
+                            case 'zh_TW':
+                              locale = const Locale('zh', 'TW');
+                              break;
+                            default:
+                              locale = const Locale('en');
+                          }
+                          widget.onLocaleChange!(locale);
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(
+                          value: 'en',
+                          child: Text('English'),
+                        ),
+                        const PopupMenuItem(
+                          value: 'zh_CN',
+                          child: Text('简体中文'),
+                        ),
+                        const PopupMenuItem(
+                          value: 'zh_TW',
+                          child: Text('繁體中文'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
             ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: _loading ? null : (_isRegisterMode ? _register : _login),
-                style: ElevatedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                child: _loading
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : Text(_isRegisterMode ? 'Register' : 'Login', style: const TextStyle(fontSize: 18)),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextButton(
-              onPressed: () {
-                setState(() {
-                  _isRegisterMode = !_isRegisterMode;
-                  _idController.clear();
-                  _pwdController.clear();
-                });
-              },
-              child: Text(
-                _isRegisterMode ? 'Already have an account? Login' : 'Don\'t have an account? Register',
-                style: const TextStyle(fontSize: 14),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
+  }
+
+  String _getCurrentLanguageLabel() {
+    final locale = Localizations.localeOf(context);
+    if (locale.languageCode == 'zh') {
+      return locale.countryCode == 'TW' ? '繁體中文' : '简体中文';
+    }
+    return 'English';
   }
 }
 

@@ -1,6 +1,8 @@
 class ApiConfig {
   // 后端 API 地址
   // 本地开发使用 localhost，真机测试时改为局域网 IP
+  
+  // 在 Mac 的 Chrome 浏览器运行使用这个：
   // static const String baseUrl = 'http://localhost:8000';
   
   // 真机测试使用局域网 IP（根据你的 Mac IP 修改）
