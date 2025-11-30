@@ -23,6 +23,7 @@ class Seat {
   final double top; // 地图上的 Y 坐标
   final double left; // 地图上的 X 坐标
   final String? apiColor; // 从 API 获取的颜色（十六进制字符串）
+  final String? previousStatus; // 举报前的状态（用于非管理员用户显示）
 
   // 确保 Seat 构造函数也是 const，以便用于静态数据
   const Seat({
@@ -31,22 +32,32 @@ class Seat {
     required this.top,
     required this.left,
     this.apiColor,
+    this.previousStatus,
   });
 
   // 从 API 响应创建 Seat（需要提供位置信息）
   factory Seat.fromApiResponse(SeatResponse apiSeat, {required double top, required double left, required bool isAdmin}) {
-    String status;
+    // 先确定原始状态（举报前的状态）
+    String originalStatus;
     if (!apiSeat.isEmpty) {
-      status = 'occupied';
+      originalStatus = 'occupied';
     } else if (apiSeat.hasPower) {
-      status = 'has_power';
+      originalStatus = 'has_power';
     } else {
-      status = 'empty';
+      originalStatus = 'empty';
     }
+    
+    String status = originalStatus;
+    String? previousStatus;
     
     // 如果是管理员且 (is_malicious 或 is_reported)，显示为 suspicious
     if (isAdmin && (apiSeat.isMalicious || apiSeat.isReported)) {
       status = 'suspicious';
+      previousStatus = originalStatus; // 保存举报前的状态
+    } else if (!isAdmin && (apiSeat.isMalicious || apiSeat.isReported)) {
+      // 非管理员用户：如果座位被举报，保存原始状态但不显示为suspicious
+      previousStatus = originalStatus;
+      status = originalStatus; // 非管理员显示原始状态
     }
 
     // 使用管理员颜色或学生颜色
@@ -58,6 +69,7 @@ class Seat {
       top: top,
       left: left,
       apiColor: color,
+      previousStatus: previousStatus,
     );
   }
 
@@ -81,6 +93,28 @@ class Seat {
       case 'empty':
       default: return AppColors.green;
     }
+  }
+  
+  // 获取显示状态（对于非管理员用户，如果是suspicious则显示previousStatus）
+  String getDisplayStatus(bool isAdmin) {
+    if (!isAdmin && status == 'suspicious' && previousStatus != null) {
+      return previousStatus!;
+    }
+    return status;
+  }
+  
+  // 获取显示颜色（对于非管理员用户，如果是suspicious则显示previousStatus对应的颜色）
+  Color getDisplayColor(bool isAdmin) {
+    if (!isAdmin && status == 'suspicious' && previousStatus != null) {
+      // 使用previousStatus对应的颜色
+      switch (previousStatus!) {
+        case 'occupied': return AppColors.grey;
+        case 'has_power': return AppColors.blue;
+        case 'empty':
+        default: return AppColors.green;
+      }
+    }
+    return color;
   }
 }
 

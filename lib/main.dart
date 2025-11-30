@@ -15,7 +15,7 @@ class LibrarySeatApp extends StatefulWidget {
 }
 
 class _LibrarySeatAppState extends State<LibrarySeatApp> {
-  Locale _locale = const Locale('zh', 'CN');
+  Locale _locale = const Locale('en');
 
   void _handleLocaleChange(Locale value) {
     setState(() {
