@@ -17,29 +17,32 @@ This project includes:
 ## 🏗️ 项目结构 / Project Structure
 
 ```
-libraryseat/
-├── backend/              # FastAPI 后端应用
-│   ├── routes/          # API 路由
-│   ├── services/        # 业务逻辑服务
-│   ├── models.py        # 数据库模型
-│   ├── schemas.py       # Pydantic 模式
-│   └── main.py          # 应用入口
-├── config/              # 配置文件
-│   ├── floors/         # 楼层 ROI 配置
-│   └── report/         # 举报图片存储
-├── yolov11/            # YOLOv11 模型代码和权重
-├── tools/              # 工具脚本
-│   ├── annotate_roi.py # ROI 标注工具
-│   └── export.py       # 数据导出工具
-├── outputs/            # 导出数据
-│   ├── YYYY-MM-DD/     # 每日导出
-│   └── monthly/        # 每月导出
-├── lib/                # Flutter 前端代码
-│   ├── pages/         # 页面
-│   ├── services/      # API 服务
-│   ├── models/        # 数据模型
-│   └── utils/         # 工具类
-└── pubspec.yaml        # Flutter 依赖配置
+Fluuter/
+├── libraryseat_frontend/     # Flutter 前端应用
+│   ├── lib/                  # Flutter 源代码
+│   │   ├── pages/           # 页面文件
+│   │   ├── models/          # 数据模型
+│   │   ├── services/       # API 服务
+│   │   └── config/          # 配置文件
+│   └── pubspec.yaml         # Flutter 依赖配置
+├── libraryseat_backend/      # FastAPI 后端服务
+│   ├── backend/             # 后端源代码
+│   │   ├── routes/         # API 路由
+│   │   ├── services/       # 业务逻辑服务
+│   │   ├── models.py       # 数据库模型
+│   │   ├── schemas.py      # Pydantic 模式
+│   │   └── main.py         # 应用入口
+│   ├── config/              # 配置文件
+│   │   ├── floors/         # 楼层 ROI 配置
+│   │   └── report/         # 举报图片存储
+│   ├── yolov11/            # YOLOv11 模型代码和权重
+│   ├── tools/              # 工具脚本
+│   │   ├── annotate_roi.py # ROI 标注工具
+│   │   └── export.py       # 数据导出工具
+│   └── outputs/            # 导出数据
+│       ├── YYYY-MM-DD/     # 每日导出
+│       └── monthly/        # 每月导出
+└── DOCUMENTATION.md         # 完整项目文档
 ```
 
 ## 🚀 快速开始 / Quick Start
@@ -47,8 +50,8 @@ libraryseat/
 ### 后端启动 / Backend
 
 ```bash
-# 1. 进入项目目录
-cd libraryseat_backend  # 或项目根目录
+# 1. 进入后端目录
+cd libraryseat_backend
 
 # 2. 创建并激活 Conda 环境
 conda create -n YOLO python=3.9 -y
@@ -66,16 +69,18 @@ python -m backend.manage_users create --username admin --password 123456 --role 
 python -m backend.manage_users create --username user --password 123456 --role student
 
 # 6. 启动服务器
-uvicorn backend.main:app --reload --host 0.0.0.0
+python -m uvicorn backend.main:app --reload --host 0.0.0.0
 ```
+
+**注意**: 必须使用 `python -m uvicorn` 而不是直接 `uvicorn`，确保在 `libraryseat_backend` 目录下运行。
 
 服务器将在 `http://localhost:8000` 启动，API 文档可在 `http://localhost:8000/docs` 查看。
 
 ### 前端启动 / Frontend
 
 ```bash
-# 1. 进入前端目录（如果前端代码在单独目录）
-cd libraryseat_frontend  # 或项目根目录
+# 1. 进入前端目录
+cd libraryseat_frontend
 
 # 2. 安装依赖
 flutter pub get
@@ -94,6 +99,7 @@ flutter run
 - ✅ 实时座位状态查看
 - ✅ 座位举报功能（支持文字和图片）
 - ✅ 多语言支持（English / 简体中文 / 繁體中文）
+- ✅ 响应式布局（支持手机和桌面）
 
 ### 管理员功能 / Admin Features
 - ✅ 异常座位列表管理
@@ -117,7 +123,7 @@ flutter run
 - 🟢 **绿色** (#60D937): 空闲座位（无插座）
 - 🔵 **蓝色** (#00A1FF): 空闲座位（有插座）
 - ⚫ **灰色** (#929292): 已占用
-- 🟡 **黄色** (#FEAE03): 可疑占座（仅管理员可见）
+- 🟡 **黄色** (#FEAE03): 可疑占座（仅管理员可见，学生端显示举报前状态）
 
 ### 楼层颜色
 - 🟢 **绿色**: 空座率 > 50%
@@ -159,6 +165,8 @@ flutter run
 用于标注座位的 ROI（感兴趣区域）：
 
 ```bash
+cd libraryseat_backend
+conda activate YOLO
 python -m tools.annotate_roi --video {video_path} --floor-id F1 --out config/floors/F1.json
 ```
 
@@ -174,6 +182,8 @@ python -m tools.annotate_roi --video {video_path} --floor-id F1 --out config/flo
 手动生成每日/每月统计数据：
 
 ```bash
+cd libraryseat_backend
+conda activate YOLO
 python tools/export.py
 ```
 
@@ -193,7 +203,7 @@ python tools/export.py
 
 ## 📱 前端配置 / Frontend Configuration
 
-前端 API 配置位于 `lib/config/api_config.dart`:
+前端 API 配置位于 `libraryseat_frontend/lib/config/api_config.dart`:
 
 ```dart
 class ApiConfig {
@@ -201,7 +211,7 @@ class ApiConfig {
   static const String baseUrl = 'http://localhost:8000';
   
   // 真机测试（使用 Mac 的局域网 IP）
-  // static const String baseUrl = 'http://192.168.1.105:8000';
+  // static const String baseUrl = 'http://192.168.1.109:8000';
 }
 ```
 
@@ -210,6 +220,9 @@ class ApiConfig {
 数据库在首次运行时自动创建。使用 CLI 管理用户：
 
 ```bash
+cd libraryseat_backend
+conda activate YOLO
+
 # 创建用户
 python -m backend.manage_users create --username admin --password 123456 --role admin
 
@@ -233,13 +246,12 @@ python -m backend.manage_users list
 ## 📚 文档 / Documentation
 
 项目根目录包含详细文档：
-- `COMMANDS.md` - 常用命令速查
-- `BACKEND_SETUP_MACOS.md` - macOS 环境配置
-- `WINDOWS_SETUP.md` - Windows 环境配置
-- `START_SERVER.md` - 服务器启动指南
-- `FRONTEND_TEST_GUIDE.md` - 前端测试指南
-- `GIT_UPDATE_GUIDE.md` - Git 更新指南
-- `REGISTER_FEATURE.md` - 注册功能文档
+- **`DOCUMENTATION.md`** ⭐ - **完整项目文档（包含所有信息）**
+  - 快速启动指南
+  - 环境配置说明
+  - 常用命令速查
+  - 真机运行指南
+  - 常见问题解答
 
 ## 🧪 测试账号 / Test Accounts
 
@@ -305,4 +317,4 @@ curl -X POST \
 3. ✅ 已创建至少一个管理员账号
 4. ✅ 已配置楼层 ROI 文件（如需要）
 
-更多详细信息请参考项目文档。
+更多详细信息请参考 `DOCUMENTATION.md`。
