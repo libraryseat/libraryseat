@@ -1,168 +1,157 @@
 # Library Seat Management System
 
-图书馆座位管理系统 - 完整的前后端项目
+A full-stack application for managing library seats with real-time detection, reporting, and admin management features.
 
-A complete full-stack application for managing library seats with real-time detection, reporting, and admin management features.
-
-## 📋 项目概述 / Overview
-
-本项目包含：
-- **后端 (Backend)**: FastAPI + YOLOv11 座位检测系统
-- **前端 (Frontend)**: Flutter 移动应用
-
-This project includes:
-- **Backend**: FastAPI + YOLOv11 seat detection system
-- **Frontend**: Flutter mobile application
-
-## 🏗️ 项目结构 / Project Structure
+## Project Structure
 
 ```
-Fluuter/
-├── libraryseat_frontend/     # Flutter 前端应用
-│   ├── lib/                  # Flutter 源代码
-│   │   ├── pages/           # 页面文件
-│   │   ├── models/          # 数据模型
-│   │   ├── services/       # API 服务
-│   │   └── config/          # 配置文件
-│   └── pubspec.yaml         # Flutter 依赖配置
-├── libraryseat_backend/      # FastAPI 后端服务
-│   ├── backend/             # 后端源代码
-│   │   ├── routes/         # API 路由
-│   │   ├── services/       # 业务逻辑服务
-│   │   ├── models.py       # 数据库模型
-│   │   ├── schemas.py      # Pydantic 模式
-│   │   └── main.py         # 应用入口
-│   ├── config/              # 配置文件
-│   │   ├── floors/         # 楼层 ROI 配置
-│   │   └── report/         # 举报图片存储
-│   ├── yolov11/            # YOLOv11 模型代码和权重
-│   ├── tools/              # 工具脚本
-│   │   ├── annotate_roi.py # ROI 标注工具
-│   │   └── export.py       # 数据导出工具
-│   └── outputs/            # 导出数据
-│       ├── YYYY-MM-DD/     # 每日导出
-│       └── monthly/        # 每月导出
-└── DOCUMENTATION.md         # 完整项目文档
+libraryseat/
+├── README.md                 # Project documentation
+├── libraryseat_frontend/     # Flutter frontend application
+│   ├── lib/                  # Flutter source code
+│   │   ├── pages/           # Page files
+│   │   ├── models/          # Data models
+│   │   ├── services/       # API services
+│   │   └── config/          # Configuration files
+│   └── pubspec.yaml         # Flutter dependencies
+└── libraryseat_backend/      # FastAPI backend service
+    ├── backend/             # Backend source code
+    │   ├── routes/         # API routes
+    │   ├── services/       # Business logic services
+    │   ├── models.py       # Database models
+    │   ├── schemas.py      # Pydantic schemas
+    │   └── main.py         # Application entry point
+    ├── config/              # Configuration files
+    │   ├── floors/         # Floor ROI configuration
+    │   └── report/         # Report image storage
+    ├── yolov11/            # YOLOv11 model code and weights
+    ├── tools/              # Utility scripts
+    │   ├── annotate_roi.py # ROI annotation tool
+    │   └── export.py       # Data export tool
+    └── outputs/            # Exported data
+        ├── YYYY-MM-DD/     # Daily exports
+        └── monthly/        # Monthly exports
 ```
 
-## 🚀 快速开始 / Quick Start
+## Quick Start
 
-### 后端启动 / Backend
+### Backend
 
 ```bash
-# 1. 进入后端目录
+# 1. Navigate to backend directory
 cd libraryseat_backend
 
-# 2. 创建并激活 Conda 环境
+# 2. Create and activate Conda environment
 conda create -n YOLO python=3.9 -y
 conda activate YOLO
 
-# 3. 安装依赖
+# 3. Install dependencies
 pip install -r requirements.txt
 
-# 4. 下载 YOLOv11 权重文件
-# 访问: https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11x.pt
-# 保存到: yolov11/weights/yolo11x.pt
+# 4. Download YOLOv11 weights
+# Visit: https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11x.pt
+# Save to: yolov11/weights/yolo11x.pt
 
-# 5. 创建测试用户
+# 5. Create test users
 python -m backend.manage_users create --username admin --password 123456 --role admin
 python -m backend.manage_users create --username user --password 123456 --role student
 
-# 6. 启动服务器
+# 6. Start server
 python -m uvicorn backend.main:app --reload --host 0.0.0.0
 ```
 
-**注意**: 必须使用 `python -m uvicorn` 而不是直接 `uvicorn`，确保在 `libraryseat_backend` 目录下运行。
+Note: Use `python -m uvicorn` instead of `uvicorn` directly. Run from the `libraryseat_backend` directory.
 
-服务器将在 `http://localhost:8000` 启动，API 文档可在 `http://localhost:8000/docs` 查看。
+Server starts at `http://localhost:8000`. API documentation available at `http://localhost:8000/docs`.
 
-### 前端启动 / Frontend
+### Frontend
 
 ```bash
-# 1. 进入前端目录
+# 1. Navigate to frontend directory
 cd libraryseat_frontend
 
-# 2. 安装依赖
+# 2. Install dependencies
 flutter pub get
 
-# 3. 运行应用
+# 3. Run application
 flutter run
 ```
 
-**注意**: 确保后端服务器已启动，前端才能正常工作。
+Note: Ensure backend server is running before starting the frontend.
 
-## ✨ 功能特性 / Features
+## Features
 
-### 用户功能 / User Features
-- ✅ 用户登录和注册
-- ✅ 楼层地图可视化
-- ✅ 实时座位状态查看
-- ✅ 座位举报功能（支持文字和图片）
-- ✅ 多语言支持（English / 简体中文 / 繁體中文）
-- ✅ 响应式布局（支持手机和桌面）
+### User Features
+- User login and registration
+- Floor map visualization
+- Real-time seat status viewing
+- Seat reporting (text and images)
+- Multi-language support (English / Simplified Chinese / Traditional Chinese)
+- Responsive layout (mobile and desktop)
 
-### 管理员功能 / Admin Features
-- ✅ 异常座位列表管理
-- ✅ 举报详情查看（文字、图片）
-- ✅ 确认/清除异常座位
-- ✅ 座位锁定功能（5分钟）
-- ✅ 楼层刷新功能
-- ✅ 可疑座位标记（仅管理员可见）
+### Admin Features
+- Anomaly seat list management
+- Report detail viewing (text, images)
+- Confirm/clear anomaly seats
+- Seat locking (5 minutes)
+- Floor refresh functionality
+- Suspicious seat marking (admin only)
 
-### 后端功能 / Backend Features
-- ✅ YOLOv11 实时座位检测
-- ✅ 自动定时刷新（默认60秒）
-- ✅ 每日/每月数据导出
-- ✅ JWT 身份认证
-- ✅ RESTful API
-- ✅ CORS 支持
+### Backend Features
+- YOLOv11 real-time seat detection
+- Automatic scheduled refresh (default 8 seconds)
+- Daily/monthly data export
+- JWT authentication
+- RESTful API
+- CORS support
 
-## 🎨 颜色规则 / Color Rules
+## Color Rules
 
-### 座位颜色（学生视角）
-- 🟢 **绿色** (#60D937): 空闲座位（无插座）
-- 🔵 **蓝色** (#00A1FF): 空闲座位（有插座）
-- ⚫ **灰色** (#929292): 已占用
-- 🟡 **黄色** (#FEAE03): 可疑占座（仅管理员可见，学生端显示举报前状态）
+### Seat Colors (Student View)
+- Green (#60D937): Available seat (no power)
+- Blue (#00A1FF): Available seat (with power)
+- Gray (#929292): Occupied
+- Yellow (#FEAE03): Suspicious (admin only, students see previous status)
 
-### 楼层颜色
-- 🟢 **绿色**: 空座率 > 50%
-- 🟡 **黄色**: 空座率 0-50%
-- 🔴 **红色**: 空座率 = 0%
+### Floor Colors
+- Green: Empty seat rate > 50%
+- Yellow: Empty seat rate 0-50%
+- Red: Empty seat rate = 0%
 
-## 📡 API 端点 / API Endpoints
+## API Endpoints
 
-### 认证 / Authentication
-- `POST /auth/login` - 用户登录
-- `POST /auth/register` - 用户注册
-- `GET /auth/me` - 获取当前用户信息
+### Authentication
+- `POST /auth/login` - User login
+- `POST /auth/register` - User registration
+- `GET /auth/me` - Get current user info
 
-### 座位和楼层 / Seats and Floors
-- `GET /seats` - 获取座位列表（可选楼层筛选）
-- `GET /seats/{seatId}` - 获取单个座位信息
-- `GET /floors` - 获取楼层摘要
-- `POST /floors/{floor}/refresh` - 手动刷新楼层
+### Seats and Floors
+- `GET /seats` - Get seat list (optional floor filter)
+- `GET /seats/{seatId}` - Get single seat info
+- `GET /floors` - Get floor summary
+- `POST /floors/{floor}/refresh` - Manual floor refresh
 
-### 举报 / Reports
-- `POST /reports` - 提交座位举报（支持文字和图片）
+### Reports
+- `POST /reports` - Submit seat report (supports text and images)
 
-### 管理员 / Admin (需要管理员权限)
-- `GET /admin/anomalies` - 获取异常座位列表
-- `GET /admin/reports/{report_id}` - 获取举报详情
-- `POST /admin/reports/{report_id}/confirm` - 确认/取消异常
-- `DELETE /admin/anomalies/{seat_id}` - 清除异常
-- `POST /admin/seats/{seat_id}/lock` - 锁定座位
+### Admin (requires admin role)
+- `GET /admin/anomalies` - Get anomaly seat list
+- `GET /admin/reports/{report_id}` - Get report details
+- `POST /admin/reports/{report_id}/confirm` - Confirm/cancel anomaly
+- `DELETE /admin/anomalies/{seat_id}` - Clear anomaly
+- `POST /admin/seats/{seat_id}/lock` - Lock seat
 
-### 其他 / Others
-- `GET /health` - 健康检查
-- `GET /stats/seats/{seatId}` - 座位统计信息
+### Others
+- `GET /health` - Health check
+- `GET /health/scheduler` - Scheduler status
+- `GET /stats/seats/{seatId}` - Seat statistics
 
-完整 API 文档: `http://localhost:8000/docs` (Swagger UI)
+Full API documentation: `http://localhost:8000/docs` (Swagger UI)
 
-## 🛠️ 工具 / Tools
+## Tools
 
-### ROI 标注工具
-用于标注座位的 ROI（感兴趣区域）：
+### ROI Annotation Tool
+Annotate seat ROI (Region of Interest):
 
 ```bash
 cd libraryseat_backend
@@ -170,16 +159,16 @@ conda activate YOLO
 python -m tools.annotate_roi --video {video_path} --floor-id F1 --out config/floors/F1.json
 ```
 
-**操作说明**:
-- 左键: 添加点
-- 右键: 删除最后一个点
-- Enter: 完成当前多边形并输入座位信息
-- N: 清除当前多边形
-- S: 保存为 JSON
-- Q: 退出
+**Controls**:
+- Left click: Add point
+- Right click: Remove last point
+- Enter: Finish polygon and enter seat info
+- N: Clear current polygon
+- S: Save as JSON
+- Q: Quit
 
-### 数据导出工具
-手动生成每日/每月统计数据：
+### Data Export Tool
+Manually generate daily/monthly statistics:
 
 ```bash
 cd libraryseat_backend
@@ -187,95 +176,92 @@ conda activate YOLO
 python tools/export.py
 ```
 
-## ⚙️ 配置 / Configuration
+## Configuration
 
-### 环境变量
-- `REFRESH_INTERVAL_SECONDS`: 楼层刷新间隔（秒），默认 60
-- `JWT_SECRET_KEY`: JWT 签名密钥，默认 `dev-secret-change`
-- `JWT_ALGORITHM`: JWT 算法，默认 `HS256`
-- `JWT_EXPIRE_MINUTES`: Token 过期时间（分钟），默认 120
+### Environment Variables
+- `REFRESH_INTERVAL_SECONDS`: Floor refresh interval in seconds (default: 8)
+- `CORS_ORIGINS`: Allowed CORS origins, comma-separated (default: "*" for development)
+- `JWT_SECRET_KEY`: JWT signing key (default: `dev-secret-change`)
+- `JWT_ALGORITHM`: JWT algorithm (default: `HS256`)
+- `JWT_EXPIRE_MINUTES`: Token expiration in minutes (default: 120)
 
-### 目录结构
-- `config/floors/`: 楼层 ROI JSON 配置文件
-- `config/report/`: 举报图片存储目录
-- `outputs/`: 数据导出目录
-- `yolov11/weights/`: YOLO 模型权重文件
+### Directory Structure
+- `config/floors/`: Floor ROI JSON configuration files
+- `config/report/`: Report image storage directory
+- `outputs/`: Data export directory
+- `yolov11/weights/`: YOLO model weight files
 
-## 📱 前端配置 / Frontend Configuration
+## Frontend Configuration
 
-前端 API 配置位于 `libraryseat_frontend/lib/config/api_config.dart`:
+Frontend API configuration is located at `libraryseat_frontend/lib/config/api_config.dart`:
 
 ```dart
 class ApiConfig {
-  // 本地开发
+  // Local development
   static const String baseUrl = 'http://localhost:8000';
   
-  // 真机测试（使用 Mac 的局域网 IP）
+  // Device testing (use Mac's local network IP)
   // static const String baseUrl = 'http://192.168.1.109:8000';
 }
 ```
 
-## 👥 用户管理 / User Management
+## User Management
 
-数据库在首次运行时自动创建。使用 CLI 管理用户：
+Database is automatically created on first run. Use CLI to manage users:
 
 ```bash
 cd libraryseat_backend
 conda activate YOLO
 
-# 创建用户
+# Create user
 python -m backend.manage_users create --username admin --password 123456 --role admin
 
-# 重置密码
+# Reset password
 python -m backend.manage_users passwd --username admin --password 654321
 
-# 更改角色
+# Change role
 python -m backend.manage_users role --username user --role student
 
-# 列出所有用户
+# List all users
 python -m backend.manage_users list
 ```
 
-## 🔄 定时任务 / Scheduling
+## Scheduled Tasks
 
-- **楼层刷新**: 每 60 秒自动刷新一次（可通过环境变量配置）
-- **每日导出**: 每天 00:00 自动导出数据并重置计数器
-- **每月导出**: 每月第一天 00:00 导出上月数据并重置月度计数器
-- **离线处理**: 启动时检查离线期间是否跨日/跨月，自动执行相应导出
+- Floor refresh: Automatically refreshes every 8 seconds (configurable via environment variable)
+- Daily export: Automatically exports data and resets counters at 00:00 daily
+- Monthly export: Exports previous month data and resets monthly counters on the first day of each month at 00:00
+- Offline handling: Checks for missed days/months on startup and performs corresponding exports
 
-## 📚 文档 / Documentation
+## Documentation
 
-项目根目录包含详细文档：
-- **`DOCUMENTATION.md`** ⭐ - **完整项目文档（包含所有信息）**
-  - 快速启动指南
-  - 环境配置说明
-  - 常用命令速查
-  - 真机运行指南
-  - 常见问题解答
+For detailed documentation, please refer to the README files in each subdirectory:
+- `libraryseat_backend/README.md` - Backend documentation
+- `libraryseat_frontend/README.md` - Frontend documentation
 
-## 🧪 测试账号 / Test Accounts
+## Test Accounts
 
-默认测试账号：
-- **管理员**: `admin` / `123456`
-- **普通用户**: `user` / `123456`
+Default test accounts:
+- Admin: `admin` / `123456`
+- User: `user` / `123456`
 
-## 🔧 技术栈 / Tech Stack
+## Tech Stack
 
-### 后端
-- FastAPI - Web 框架
+### Backend
+- FastAPI - Web framework
 - SQLAlchemy - ORM
-- YOLOv11 - 目标检测
-- SQLite - 数据库
-- APScheduler - 定时任务
+- YOLOv11 - Object detection
+- SQLite - Database
+- APScheduler - Scheduled tasks
 
-### 前端
-- Flutter - 跨平台框架
-- Dio - HTTP 客户端
-- SharedPreferences - 本地存储
+### Frontend
+- Flutter - Cross-platform framework
+- Dio - HTTP client
+- SharedPreferences - Local storage
 
-## 📝 API 使用示例 / API Usage Examples
+## API Usage Examples
 
-### 登录
+### Login
 ```bash
 curl -X POST \
   -H "Content-Type: application/x-www-form-urlencoded" \
@@ -283,13 +269,13 @@ curl -X POST \
   http://localhost:8000/auth/login
 ```
 
-### 获取座位列表
+### Get Seat List
 ```bash
 curl -H "Authorization: Bearer YOUR_TOKEN" \
   http://localhost:8000/seats?floor=F1
 ```
 
-### 提交举报
+### Submit Report
 ```bash
 curl -X POST \
   -H "Authorization: Bearer YOUR_TOKEN" \
@@ -300,21 +286,16 @@ curl -X POST \
   http://localhost:8000/reports
 ```
 
-## 🤝 贡献者 / Contributors
+## License
 
-- @chengu-123 - Chenhao Guan
-- @HongtianChan - Hongtian Chan
-
-## 📄 许可证 / License
-
-本项目为团队项目，版权归 libraryseat 组织所有。
+This project is a team project. All rights reserved by the libraryseat organization.
 
 ---
 
-**注意**: 首次运行前请确保：
-1. ✅ 已安装 Python 3.9+ 和 Conda
-2. ✅ 已下载 YOLOv11 权重文件
-3. ✅ 已创建至少一个管理员账号
-4. ✅ 已配置楼层 ROI 文件（如需要）
+**Note**: Before first run, ensure:
+1. Python 3.9+ and Conda are installed
+2. YOLOv11 weights file is downloaded
+3. At least one admin account is created
+4. Floor ROI files are configured (if needed)
 
-更多详细信息请参考 `DOCUMENTATION.md`。
+For more details, refer to `DOCUMENTATION.md`.
