@@ -10,6 +10,7 @@ torch
 torchvision
 python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
+bcrypt<4.0.0
 thop
 tqdm
 PyYAML
@@ -18,4 +19,3 @@ albumentations
 ultralytics
 opencv-python==4.12.0.88 
 opencv-python-headless==4.12.0.88
-
