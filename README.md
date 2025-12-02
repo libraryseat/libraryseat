@@ -7,39 +7,77 @@ A full-stack application for managing library seats with real-time detection, re
 ```
 libraryseat/
 ├── README.md                 # Project documentation
-├── libraryseat_frontend/     # Flutter frontend application
+├── start_frontend.sh         # Frontend startup script
+├── start_backend.sh          # Backend startup script
+├── FRONTEND/                 # Flutter frontend application
 │   ├── lib/                  # Flutter source code
-│   │   ├── pages/           # Page files
-│   │   ├── models/          # Data models
-│   │   ├── services/       # API services
-│   │   └── config/          # Configuration files
-│   └── pubspec.yaml         # Flutter dependencies
-└── libraryseat_backend/      # FastAPI backend service
-    ├── backend/             # Backend source code
-    │   ├── routes/         # API routes
-    │   ├── services/       # Business logic services
-    │   ├── models.py       # Database models
-    │   ├── schemas.py      # Pydantic schemas
-    │   └── main.py         # Application entry point
-    ├── config/              # Configuration files
-    │   ├── floors/         # Floor ROI configuration
-    │   └── report/         # Report image storage
-    ├── yolov11/            # YOLOv11 model code and weights
-    ├── tools/              # Utility scripts
-    │   ├── annotate_roi.py # ROI annotation tool
-    │   └── export.py       # Data export tool
-    └── outputs/            # Exported data
-        ├── YYYY-MM-DD/     # Daily exports
-        └── monthly/        # Monthly exports
+│   │   ├── pages/            # Page files
+│   │   ├── models/           # Data models
+│   │   ├── services/         # API services
+│   │   └── config/           # Configuration files
+│   └── pubspec.yaml          # Flutter dependencies
+└── BACKEND/                  # FastAPI backend service
+    ├── backend/              # Backend source code
+    │   ├── routes/           # API routes
+    │   ├── services/         # Business logic services
+    │   ├── models.py         # Database models
+    │   ├── schemas.py        # Pydantic schemas
+    │   └── main.py           # Application entry point
+    ├── config/               # Configuration files
+    │   ├── floors/           # Floor ROI configuration
+    │   ├── report/           # Report image storage
+    │   └── roi.schema.json   # ROI schema definition
+    ├── yolov11/              # YOLOv11 model code and weights
+    ├── tools/                # Utility scripts
+    │   ├── annotate_roi.py   # ROI annotation tool
+    │   └── export.py         # Data export tool
+    └── outputs/              # Exported data
+        ├── YYYY-MM-DD/       # Daily exports
+        └── monthly/          # Monthly exports
 ```
 
 ## Quick Start
 
-### Backend
+### Prerequisites
+
+1. Python 3.9+ and Conda
+2. Flutter SDK
+3. YOLOv11 weights file (downloaded to `BACKEND/yolov11/weights/yolo11x.pt`)
+
+### Using Startup Scripts (Recommended)
+
+We provide convenient startup scripts for both backend and frontend.
+
+**Backend:**
+
+```bash
+./start_backend.sh
+```
+
+This script will automatically:
+- Check for Conda environment (creates `YOLO` environment if missing)
+- Install dependencies
+- Check for port conflicts
+- Start the FastAPI server
+
+**Frontend:**
+
+```bash
+./start_frontend.sh
+```
+
+This script will:
+- Check for Flutter installation
+- Install dependencies
+- Start the Flutter application
+
+### Manual Setup
+
+#### Backend
 
 ```bash
 # 1. Navigate to backend directory
-cd libraryseat_backend
+cd BACKEND
 
 # 2. Create and activate Conda environment
 conda create -n YOLO python=3.9 -y
@@ -60,15 +98,15 @@ python -m backend.manage_users create --username user --password 123456 --role s
 python -m uvicorn backend.main:app --reload --host 0.0.0.0
 ```
 
-Note: Use `python -m uvicorn` instead of `uvicorn` directly. Run from the `libraryseat_backend` directory.
+Note: Use `python -m uvicorn` instead of `uvicorn` directly. Run from the `BACKEND` directory.
 
 Server starts at `http://localhost:8000`. API documentation available at `http://localhost:8000/docs`.
 
-### Frontend
+#### Frontend
 
 ```bash
 # 1. Navigate to frontend directory
-cd libraryseat_frontend
+cd FRONTEND
 
 # 2. Install dependencies
 flutter pub get
@@ -154,7 +192,7 @@ Full API documentation: `http://localhost:8000/docs` (Swagger UI)
 Annotate seat ROI (Region of Interest):
 
 ```bash
-cd libraryseat_backend
+cd BACKEND
 conda activate YOLO
 python -m tools.annotate_roi --video {video_path} --floor-id F1 --out config/floors/F1.json
 ```
@@ -171,7 +209,7 @@ python -m tools.annotate_roi --video {video_path} --floor-id F1 --out config/flo
 Manually generate daily/monthly statistics:
 
 ```bash
-cd libraryseat_backend
+cd BACKEND
 conda activate YOLO
 python tools/export.py
 ```
@@ -193,7 +231,7 @@ python tools/export.py
 
 ## Frontend Configuration
 
-Frontend API configuration is located at `libraryseat_frontend/lib/config/api_config.dart`:
+Frontend API configuration is located at `FRONTEND/lib/config/api_config.dart`:
 
 ```dart
 class ApiConfig {
@@ -210,7 +248,7 @@ class ApiConfig {
 Database is automatically created on first run. Use CLI to manage users:
 
 ```bash
-cd libraryseat_backend
+cd BACKEND
 conda activate YOLO
 
 # Create user
@@ -236,8 +274,8 @@ python -m backend.manage_users list
 ## Documentation
 
 For detailed documentation, please refer to the README files in each subdirectory:
-- `libraryseat_backend/README.md` - Backend documentation
-- `libraryseat_frontend/README.md` - Frontend documentation
+- `BACKEND/README.md` - Backend documentation
+- `FRONTEND/README.md` - Frontend documentation
 
 ## Test Accounts
 
@@ -281,7 +319,7 @@ curl -X POST \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -F "seat_id=F1-01" \
   -F "reporter_id=1" \
-  -F "text=占座" \
+  -F "text=Seat Occupied" \
   -F "images=@/path/to/image.jpg" \
   http://localhost:8000/reports
 ```
@@ -298,4 +336,3 @@ This project is a team project. All rights reserved by the libraryseat organizat
 3. At least one admin account is created
 4. Floor ROI files are configured (if needed)
 
-For more details, refer to `DOCUMENTATION.md`.
