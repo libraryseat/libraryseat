@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_config.dart';
 
@@ -94,7 +95,7 @@ class ApiService {
     required String seatId,
     required int reporterId,
     String? text,
-    List<String>? imagePaths,
+    List<XFile>? images,
   }) async {
     final formData = FormData();
     formData.fields.addAll([
@@ -105,11 +106,12 @@ class ApiService {
       formData.fields.add(MapEntry('text', text));
     }
     
-    if (imagePaths != null && imagePaths.isNotEmpty) {
-      for (var path in imagePaths) {
+    if (images != null && images.isNotEmpty) {
+      for (var image in images) {
+        final bytes = await image.readAsBytes();
         formData.files.add(MapEntry(
           'images',
-          await MultipartFile.fromFile(path),
+          MultipartFile.fromBytes(bytes, filename: image.name),
         ));
       }
     }
@@ -117,9 +119,6 @@ class ApiService {
     final response = await _dio.post(
       '/reports',
       data: formData,
-      options: Options(
-        contentType: 'multipart/form-data',
-      ),
     );
     return ReportResponse.fromJson(response.data);
   }

@@ -47,7 +47,7 @@ class FloorRefreshScheduler:
 			
 			for seat in suspicious_seats:
 				# 检查是否超过30秒
-				if seat.last_update_ts > 0 and (now - seat.last_update_ts > 30):
+				if seat.occupancy_start_ts > 0 and (now - seat.occupancy_start_ts > 30):
 					# 标记为系统推送的举报
 					if not seat.is_system_reported:
 						seat.is_system_reported = True

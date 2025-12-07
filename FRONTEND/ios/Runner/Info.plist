@@ -4,6 +4,10 @@
 <dict>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Allow access to local network for connecting to the backend server.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Need to upload photos for seat reporting.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Need to take photos for seat reporting.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_http._tcp</string>

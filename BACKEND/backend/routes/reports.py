@@ -18,7 +18,7 @@ router = APIRouter(prefix="", tags=["reports"])
 def _save_report_images(report_id: int, files: Optional[List[UploadFile]]) -> List[str]:
 	if not files:
 		return []
-	base_dir = Path(__file__).resolve().parents[1]
+	base_dir = Path(__file__).resolve().parents[2]
 	report_root = base_dir / "config" / "report" / str(report_id)
 	report_root.mkdir(parents=True, exist_ok=True)
 	now = int(time.time())

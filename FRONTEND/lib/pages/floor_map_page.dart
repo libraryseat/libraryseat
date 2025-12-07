@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/seat_model.dart';
@@ -960,129 +963,241 @@ class _FloorMapPageState extends State<FloorMapPage> {
 
   void _showReportDialog(Seat seat) {
     final controller = TextEditingController();
-    bool _submitting = false;
-    
+    bool submitting = false;
+    List<XFile> selectedImages = [];
+    final ImagePicker picker = ImagePicker();
+
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: AppColors.dialogBackground,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(t('report_title'), style: const TextStyle(fontWeight: FontWeight.bold)),
-              IconButton(icon: const Icon(Icons.close, color: Colors.black54), onPressed: () => Navigator.pop(context)),
-            ],
-          ),
-          content: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width - 40,
+        builder: (context, setDialogState) {
+          Future<void> pickImage(ImageSource source) async {
+            try {
+              final XFile? image = await picker.pickImage(source: source, imageQuality: 50);
+              if (image != null) {
+                setDialogState(() {
+                  selectedImages.add(image);
+                });
+              }
+            } catch (e) {
+              debugPrint('Error picking image: $e');
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Failed to pick image: $e')),
+                );
+              }
+            }
+          }
+
+          return AlertDialog(
+            backgroundColor: AppColors.dialogBackground,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(t('report_title'), style: const TextStyle(fontWeight: FontWeight.bold)),
+                IconButton(icon: const Icon(Icons.close, color: Colors.black54), onPressed: () => Navigator.pop(context)),
+              ],
             ),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text("ID: ${seat.id}", style: const TextStyle(color: Colors.black54)),
-                  const SizedBox(height: 15),
-                  TextField(
-                    controller: controller,
-                    decoration: InputDecoration(
-                      filled: true,
-                      fillColor: Colors.white.withValues(alpha: 0.5),
-                      labelText: t('desc_label'),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
+            content: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width - 40,
+                maxHeight: MediaQuery.of(context).size.height * 0.8,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text("ID: ${seat.id}", style: const TextStyle(color: Colors.black54)),
+                    const SizedBox(height: 15),
+                    TextField(
+                      controller: controller,
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: Colors.white.withValues(alpha: 0.5),
+                        labelText: t('desc_label'),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        hintText: t('desc_hint'),
                       ),
-                      hintText: t('desc_hint'),
+                      maxLines: 3,
                     ),
-                    maxLines: 3,
-                  ),
-                  const SizedBox(height: 15),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(15),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.white54),
-                    ),
-                    child: Column(
+                    const SizedBox(height: 15),
+                    
+                    // 图片选择区域
+                    Row(
                       children: [
-                        const Icon(Icons.camera_alt, color: Colors.black45, size: 30),
-                        const SizedBox(height: 5),
-                        Text(t('upload_photo'), style: const TextStyle(color: Colors.black45)),
+                        Expanded(
+                          child: InkWell(
+                            onTap: () => pickImage(ImageSource.camera),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.5),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.black12),
+                              ),
+                              child: Column(
+                                children: [
+                                  const Icon(Icons.camera_alt, color: Colors.blue),
+                                  const SizedBox(height: 4),
+                                  Text(t('camera') ?? 'Camera', style: const TextStyle(fontSize: 12)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: InkWell(
+                            onTap: () => pickImage(ImageSource.gallery),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.5),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.black12),
+                              ),
+                              child: Column(
+                                children: [
+                                  const Icon(Icons.photo_library, color: Colors.green),
+                                  const SizedBox(height: 4),
+                                  Text(t('gallery') ?? 'Gallery', style: const TextStyle(fontSize: 12)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.confirmButton,
-                  foregroundColor: Colors.black87,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                    
+                    if (selectedImages.isNotEmpty) ...[
+                      const SizedBox(height: 15),
+                      Text(
+                        "${t('selected_images') ?? 'Selected Images'} (${selectedImages.length})",
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        height: 80,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: selectedImages.length,
+                          itemBuilder: (context, index) {
+                            return Stack(
+                              children: [
+                                Container(
+                                  margin: const EdgeInsets.only(right: 8),
+                                  width: 80,
+                                  height: 80,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(8),
+                                    image: DecorationImage(
+                                      image: kIsWeb
+                                          ? NetworkImage(selectedImages[index].path)
+                                          : FileImage(File(selectedImages[index].path)) as ImageProvider,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                ),
+                                Positioned(
+                                  right: 4,
+                                  top: 0,
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      setDialogState(() {
+                                        selectedImages.removeAt(index);
+                                      });
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.all(2),
+                                      decoration: const BoxDecoration(
+                                        color: Colors.red,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(Icons.close, size: 14, color: Colors.white),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 25),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.confirmButton,
+                          foregroundColor: Colors.black87,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        onPressed: submitting ? null : () async {
+                          setDialogState(() => submitting = true);
+                          try {
+                            final prefs = await SharedPreferences.getInstance();
+                            final userId = prefs.getInt('user_id');
+                            if (userId == null) {
+                              throw Exception('User ID not found');
+                            }
+                            
+                            await _apiService.submitReport(
+                              seatId: seat.id,
+                              reporterId: userId,
+                              text: controller.text.trim().isEmpty ? null : controller.text.trim(),
+                              images: selectedImages.isEmpty ? null : selectedImages,
+                            );
+                            
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                              
+                              // 如果是F3或F4的座位，更新伪数据状态为suspicious
+                              _updateMockSeatStatus(seat.id, 'suspicious');
+                              
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(t('success_msg')),
+                                  backgroundColor: AppColors.green,
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                ),
+                              );
+                              // 刷新当前楼层数据
+                              _loadData();
+                            }
+                          } catch (e) {
+                            setDialogState(() => submitting = false);
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Failed to submit report: $e'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                        child: submitting
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black87),
+                              )
+                            : Text(t('submit'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ],
                 ),
-                onPressed: _submitting ? null : () async {
-                  setDialogState(() => _submitting = true);
-                  try {
-                    final prefs = await SharedPreferences.getInstance();
-                    final userId = prefs.getInt('user_id');
-                    if (userId == null) {
-                      throw Exception('User ID not found');
-                    }
-                    await _apiService.submitReport(
-                      seatId: seat.id,
-                      reporterId: userId,
-                      text: controller.text.trim().isEmpty ? null : controller.text.trim(),
-                    );
-                    if (context.mounted) {
-                      Navigator.pop(context);
-                      
-                      // 如果是F3或F4的座位，更新伪数据状态为suspicious
-                      _updateMockSeatStatus(seat.id, 'suspicious');
-                      
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(t('success_msg')),
-                          backgroundColor: AppColors.green,
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                      );
-                      // 刷新当前楼层数据
-                      _loadData();
-                    }
-                  } catch (e) {
-                    setDialogState(() => _submitting = false);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Failed to submit report: $e'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  }
-                },
-                child: _submitting
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black87),
-                      )
-                    : Text(t('submit'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

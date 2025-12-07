@@ -11,10 +11,13 @@ libraryseat/
 ├── start_backend.sh          # Backend startup script
 ├── FRONTEND/                 # Flutter frontend application
 │   ├── lib/                  # Flutter source code
-│   │   ├── pages/            # Page files
+│   │   ├── config/           # Configuration (API config)
 │   │   ├── models/           # Data models
+│   │   ├── pages/            # UI pages
 │   │   ├── services/         # API services
-│   │   └── config/           # Configuration files
+│   │   └── utils/            # Utilities (translations)
+│   ├── android/              # Android native code
+│   ├── ios/                  # iOS native code
 │   └── pubspec.yaml          # Flutter dependencies
 └── BACKEND/                  # FastAPI backend service
     ├── backend/              # Backend source code
@@ -68,7 +71,7 @@ This script will automatically:
 
 This script will:
 - Check for Flutter installation
-- Install dependencies
+- Install dependencies (including `image_picker` for photo uploads)
 - Start the Flutter application
 
 ### Manual Setup
@@ -115,6 +118,8 @@ flutter pub get
 flutter run
 ```
 
+**Important for iOS**: If you are running on a physical iOS device, ensure `FRONTEND/ios/Runner/Info.plist` contains the necessary `NSPhotoLibraryUsageDescription` and `NSCameraUsageDescription` keys (already configured in the repository).
+
 Note: Ensure backend server is running before starting the frontend.
 
 ## Features
@@ -123,7 +128,7 @@ Note: Ensure backend server is running before starting the frontend.
 - User login and registration
 - Floor map visualization
 - Real-time seat status viewing
-- Seat reporting (text and images)
+- **Seat reporting with Photo Upload** (Camera & Gallery support)
 - Multi-language support (English / Simplified Chinese / Traditional Chinese)
 - Responsive layout (mobile and desktop)
 
@@ -137,6 +142,7 @@ Note: Ensure backend server is running before starting the frontend.
 
 ### Backend Features
 - YOLOv11 real-time seat detection
+- **System Auto-Alarm**: Automatically flags seats as "System Reported" if malicious status persists > 30 seconds.
 - Automatic scheduled refresh (default 8 seconds)
 - Daily/monthly data export
 - JWT authentication
@@ -185,6 +191,21 @@ Note: Ensure backend server is running before starting the frontend.
 - `GET /stats/seats/{seatId}` - Seat statistics
 
 Full API documentation: `http://localhost:8000/docs` (Swagger UI)
+
+## Demo Tips (MVP)
+
+### System Auto-Alarm Demo
+To demonstrate the system automatically flagging a seat as suspicious (Yellow -> Red Alarm):
+1. Go to `BACKEND/backend/services/yolo_service.py` line ~333.
+2. Change the threshold `7200` (2 hours) to a small value like `10` (seconds).
+3. Place an object on a seat.
+4. Wait ~10 seconds -> Seat turns Yellow (Malicious).
+5. Wait another ~30 seconds -> System Auto-Alarm triggers (appears in Admin Anomaly List).
+
+### Frontend Mock Data
+- Floors F3 and F4 use mock data for demonstration purposes.
+- F3 is configured to be fully occupied (Grey).
+- F4 shows a variety of statuses including suspicious seats.
 
 ## Tools
 
@@ -267,6 +288,7 @@ python -m backend.manage_users list
 ## Scheduled Tasks
 
 - Floor refresh: Automatically refreshes every 8 seconds (configurable via environment variable)
+- **Alarm Check**: Checks every 5 seconds for seats that have been suspicious for >30 seconds.
 - Daily export: Automatically exports data and resets counters at 00:00 daily
 - Monthly export: Exports previous month data and resets monthly counters on the first day of each month at 00:00
 - Offline handling: Checks for missed days/months on startup and performs corresponding exports
@@ -296,6 +318,7 @@ Default test accounts:
 - Flutter - Cross-platform framework
 - Dio - HTTP client
 - SharedPreferences - Local storage
+- **image_picker** - Photo capture and selection
 
 ## API Usage Examples
 
@@ -335,4 +358,3 @@ This project is a team project. All rights reserved by the libraryseat organizat
 2. YOLOv11 weights file is downloaded
 3. At least one admin account is created
 4. Floor ROI files are configured (if needed)
-

@@ -52,6 +52,9 @@ class AppTranslations {
       'register': 'Register',
       'login_prompt': 'Sign in to continue',
       'register_prompt': 'Create a new account',
+      'camera': 'Camera',
+      'gallery': 'Gallery',
+      'selected_images': 'Selected Images',
     },
     'zh': { // 简体中文
       'language': '语言',
@@ -104,6 +107,9 @@ class AppTranslations {
       'register': '注册',
       'login_prompt': '登录以继续',
       'register_prompt': '创建新账号',
+      'camera': '相机',
+      'gallery': '图库',
+      'selected_images': '已选图片',
     },
     'zh_TW': { // 繁體中文
       'language': '語言',
@@ -156,6 +162,9 @@ class AppTranslations {
       'register': '註冊',
       'login_prompt': '登入以繼續',
       'register_prompt': '創建新帳號',
+      'camera': '相機',
+      'gallery': '圖庫',
+      'selected_images': '已選圖片',
     },
   };
 
