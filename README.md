@@ -97,7 +97,8 @@ pip install -r requirements.txt
 python -m backend.manage_users create --username admin --password 123456 --role admin
 python -m backend.manage_users create --username user --password 123456 --role student
 
-# if the code is run for the first time. please edit configuration
+# if the code is run for the first time.
+# add the video to BACKEND/input/test, rename to "F1.mp4"
 # python -m tools.annotate_roi --video {video_path} --floor-id F1 --out config/floors/F1.json
 
 # 6.start server
