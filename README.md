@@ -97,8 +97,11 @@ pip install -r requirements.txt
 python -m backend.manage_users create --username admin --password 123456 --role admin
 python -m backend.manage_users create --username user --password 123456 --role student
 
-# 6. Start server
-python -m uvicorn backend.main:app --reload --host 0.0.0.0
+# 6.start server
+python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+
+restart server
+python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 Note: Use `python -m uvicorn` instead of `uvicorn` directly. Run from the `BACKEND` directory.
