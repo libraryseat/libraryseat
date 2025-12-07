@@ -89,3 +89,6 @@ app.*.map.json
 .svn/
 .swiftpm/
 migrate_working_dir/
+
+# Ignore trash folder
+_trash/

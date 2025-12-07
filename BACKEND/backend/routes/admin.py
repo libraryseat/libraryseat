@@ -24,7 +24,12 @@ def list_anomalies(
 	floor: Optional[str] = Query(default=None),
 	db: Session = Depends(get_db),
 ) -> List[AnomalyOut]:
-	q = db.query(Seat).filter((Seat.is_reported == True) | (Seat.is_malicious == True))
+	# 修改查询条件：不仅包含被举报的，也包含被系统标记为恶意的，或者系统自动推送的
+	q = db.query(Seat).filter(
+		(Seat.is_reported == True) | 
+		(Seat.is_malicious == True) |
+		(Seat.is_system_reported == True)
+	)
 	if floor:
 		q = q.filter(Seat.floor_id == floor)
 	seats = q.all()
@@ -42,25 +47,27 @@ def confirm_toggle(report_id: int, db: Session = Depends(get_db)) -> AnomalyOut:
 	report = get_or_404(db, Report, report_id)
 	seat = get_or_404(db, Seat, report.seat_id, id_field=Seat.seat_id)
 
-	# 确认异常的逻辑：
-	# - 如果当前是恶意（黄色），确认后应该清除恶意标记，座位变为空闲（绿色/蓝色）
-	# - 如果当前不是恶意，确认后标记为恶意（黄色）
-	if seat.is_malicious:
-		# 确认异常：清除恶意标记，座位变为空闲状态
-		seat.is_malicious = False
-		seat.is_reported = False  # 清除举报标记
-		seat.is_empty = True  # 确认异常后，座位应该是空的
-		report.status = "confirmed"
-	else:
-		# 标记为恶意
-		seat.is_malicious = True
-		report.status = "confirmed"
+	# 确认异常（勾选）：
+	# 场景：确实有人占座（异常），或者管理员判定这是个违规行为。
+	# 动作：清理异常状态，将座位恢复为“空闲”状态（赶走占座者，让座位变回绿色/蓝色供他人使用）。
+	#      同时标记举报为"confirmed"。
+	#      
+	# 注意：确认后，座位会从异常列表中消失（因为所有异常标记都被清除），
+	#      这是正常行为，表示问题已处理完毕。
+	
+	seat.is_malicious = False
+	seat.is_reported = False
+	seat.is_system_reported = False # 清除系统推送标记
+	seat.is_empty = True  # 恢复为空闲
+	
+	report.status = "confirmed"
 	
 	db.add(seat)
 	db.add(report)
 	db.commit()
 	db.refresh(seat)
-
+	
+	# 返回更新后的座位信息（虽然它不再是异常，但前端需要这个响应来更新UI）
 	return build_anomaly_out(seat, db)
 
 
@@ -68,12 +75,30 @@ def confirm_toggle(report_id: int, db: Session = Depends(get_db)) -> AnomalyOut:
 def clear_anomaly(seat_id: str, db: Session = Depends(get_db)) -> AnomalyOut:
 	seat = get_or_404(db, Seat, seat_id, id_field=Seat.seat_id)
 
-	# 删除异常：说明有人正在坐，恢复为占用状态（灰色）
+	# 删除/驳回异常（叉掉）：
+	# 场景：座位是正常的（比如人只是暂时离开或正常使用），被人误举报了。
+	# 动作：清除举报标记，恢复座位原来的状态。
+	#      注意：我们并不完全知道"原来"是什么状态，但通常：
+	#      - 如果之前被标记为 malicious（黄色），说明管理员之前可能确认过，或者系统自动标记的。
+	#        现在人工驳回，说明其实没问题。
+	#      - 逻辑上，"没有异常" 意味着 "当前的使用状态是合法的"。
+	#      - 如果有人坐（is_empty=False），那就保持有人坐。
+	#      - 如果没人坐（is_empty=True），那就保持没人坐。
+	#      
+	#      *关键修改*：这里我们只清除 `is_reported` 和 `is_malicious` 标记，
+	#      **不修改** `is_empty` 的状态。
+	#      这样，如果它本身是空闲的，就还是空闲；如果本身是占用的，就还是占用。
+	#      这就实现了"空闲就空闲，有人使用就有人使用"的效果。
+
 	seat.is_reported = False
 	seat.is_malicious = False
-	seat.is_empty = False  # 删除异常说明有人正在坐，所以是占用状态
-	# optional: set all pending reports to dismissed
+	seat.is_system_reported = False # 清除系统推送标记
+	
+	# 不修改 seat.is_empty，保持原状
+	
+	# 将相关的 pending 举报标记为 dismissed
 	db.query(Report).filter(Report.seat_id == seat_id, Report.status == "pending").update({"status": "dismissed"})
+	
 	db.add(seat)
 	db.commit()
 	db.refresh(seat)

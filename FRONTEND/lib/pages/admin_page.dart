@@ -57,15 +57,15 @@ class _AdminPageState extends State<AdminPage> {
   
   // 初始化F3和F4的伪数据（与FloorMapPage保持一致）
   void _initializeMockData() {
-    // F3: 7个座位，初始状态
+    // F3: 7个座位，全部占用（灰色，0个空座位）
     _mockF3Seats = [
-      Seat(id: 'F3-01', status: 'empty', top: 150, left: 80),
-      Seat(id: 'F3-02', status: 'has_power', top: 150, left: 200),
+      Seat(id: 'F3-01', status: 'occupied', top: 150, left: 80),
+      Seat(id: 'F3-02', status: 'occupied', top: 150, left: 200),
       Seat(id: 'F3-03', status: 'occupied', top: 300, left: 80),
-      Seat(id: 'F3-04', status: 'empty', top: 300, left: 200),
-      Seat(id: 'F3-05', status: 'has_power', top: 500, left: 80),
+      Seat(id: 'F3-04', status: 'occupied', top: 300, left: 200),
+      Seat(id: 'F3-05', status: 'occupied', top: 500, left: 80),
       Seat(id: 'F3-06', status: 'occupied', top: 500, left: 200),
-      Seat(id: 'F3-07', status: 'empty', top: 350, left: 350),
+      Seat(id: 'F3-07', status: 'occupied', top: 350, left: 350),
     ];
     
     // F4: 8个座位，初始状态
@@ -233,28 +233,31 @@ class _AdminPageState extends State<AdminPage> {
       final updated = await _apiService.confirmAnomaly(anomaly.lastReportId!);
       // 确认异常后自动上锁5分钟
       await _apiService.lockSeat(anomaly.seatId, minutes: 5);
-      // 更新列表中的异常
+      
+      // 确认异常后，座位会被清除所有异常标记，所以应该从列表中移除
       setState(() {
-        final index = _anomalies.indexWhere((a) => a.seatId == anomaly.seatId);
-        if (index != -1) {
-          _anomalies[index] = updated;
-        }
+        // 从异常列表中移除（因为确认后它不再是异常）
+        _anomalies.removeWhere((a) => a.seatId == anomaly.seatId);
+        _filteredAnomalies.removeWhere((a) => a.seatId == anomaly.seatId);
+        _selectedSeats.remove(anomaly.seatId);
         _filterAnomalies(_searchController.text);
-        _selectedSeats = _anomalies
-            .where((a) => a.isMalicious)
-            .map((a) => a.seatId)
-            .toSet()
-            .cast<String>();
       });
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Anomaly confirmed and seat locked for 5 minutes')),
+          const SnackBar(
+            content: Text('Anomaly confirmed and seat locked for 5 minutes'),
+            duration: Duration(seconds: 3),
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update anomaly: $e')),
+          SnackBar(
+            content: Text('Failed to update anomaly: $e'),
+            duration: Duration(seconds: 3),
+          ),
         );
       }
     } finally {

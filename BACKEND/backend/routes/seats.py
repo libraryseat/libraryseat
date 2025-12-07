@@ -29,6 +29,23 @@ def list_seats(
 	if floor:
 		q = q.filter(Seat.floor_id == floor)
 	seats = q.all()
+	
+	# Mock Data Logic for Demo
+	if floor == "F3":
+		# F3 默认为全占用（灰色，0个空座位）
+		for s in seats:
+			s.is_empty = False
+			s.is_reported = False
+			s.is_malicious = False
+			s.has_power = False # 假设无电插座
+	elif floor == "test":
+		# test 楼层显示红色（全占用）
+		for s in seats:
+			s.is_empty = False
+			s.is_reported = False
+			s.is_malicious = False
+			s.has_power = False
+			
 	return [build_seat_out(s) for s in seats]
 
 
@@ -44,14 +61,34 @@ def get_seat(
 @router.get("/floors", response_model=List[FloorSummary])
 def list_floors(db: Session = Depends(get_db)) -> List[FloorSummary]:
 	seats = db.query(Seat).all()
+	
+	# Apply mock data logic to summary as well
+	for s in seats:
+		if s.floor_id == "F3":
+			s.is_empty = False  # F3全占用
+		elif s.floor_id == "test":
+			s.is_empty = False
+
 	by_floor: Dict[str, Dict[str, int]] = {}
 	for s in seats:
 		stats = by_floor.setdefault(s.floor_id, {"empty": 0, "total": 0})
 		stats["total"] += 1
 		if s.is_empty:
 			stats["empty"] += 1
+	
+	# 确保 F3 楼层有数据，如果没有座位数据，创建默认统计
+	if "F3" not in by_floor:
+		# 如果 F3 没有座位数据，创建一个全占用的统计
+		by_floor["F3"] = {"empty": 0, "total": 1}  # 至少有一个座位，0个空座位
+			
 	out: List[FloorSummary] = []
 	for floor_id, stats in sorted(by_floor.items()):
+		# 特殊处理 F3：强制设置为全占用（红色）
+		if floor_id == "F3":
+			stats["empty"] = 0
+			if stats["total"] == 0:
+				stats["total"] = 1  # 确保至少有一个座位
+		
 		color = compute_floor_color(stats["empty"], stats["total"])
 		out.append(
 			FloorSummary(

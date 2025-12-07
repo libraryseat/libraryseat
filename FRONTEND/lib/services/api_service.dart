@@ -104,8 +104,15 @@ class ApiService {
     if (text != null && text.isNotEmpty) {
       formData.fields.add(MapEntry('text', text));
     }
-    // 注意：图片上传需要实际的文件，这里先只支持文字举报
-    // 如果需要图片上传，需要使用 MultipartFile
+    
+    if (imagePaths != null && imagePaths.isNotEmpty) {
+      for (var path in imagePaths) {
+        formData.files.add(MapEntry(
+          'images',
+          await MultipartFile.fromFile(path),
+        ));
+      }
+    }
     
     final response = await _dio.post(
       '/reports',
@@ -249,4 +256,3 @@ class ReportResponse {
     );
   }
 }
-

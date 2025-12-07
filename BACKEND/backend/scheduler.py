@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import os
 import logging
+import time
 from typing import Optional
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
 
 from .db import SessionLocal
+from .models import Seat
 from .services.roi_loader import list_floor_ids, load_floor_config
 from .services.yolo_service import refresh_floor
 from .services.rollover import perform_rollovers_if_needed, export_daily_and_reset, export_monthly_and_reset_total, _date_from_ts, is_first_day
@@ -32,6 +34,36 @@ class FloorRefreshScheduler:
 		finally:
 			db.close()
 
+	def _alarm_check_job(self) -> None:
+		"""
+		检查黄色状态（is_malicious=True）持续超过30秒的座位。
+		如果是，则将其标记为 is_system_reported=True，这样它就会出现在管理员的异常列表中。
+		"""
+		db = SessionLocal()
+		try:
+			now = int(time.time())
+			# 查找所有恶意/黄色状态的座位
+			suspicious_seats = db.query(Seat).filter(Seat.is_malicious == True).all()
+			
+			for seat in suspicious_seats:
+				# 检查是否超过30秒
+				if seat.last_update_ts > 0 and (now - seat.last_update_ts > 30):
+					# 标记为系统推送的举报
+					if not seat.is_system_reported:
+						seat.is_system_reported = True
+						db.add(seat)
+						
+						# 正常日志记录
+						msg = f"System Auto-Report: Seat {seat.seat_id} has been suspicious (yellow) for over 30 seconds."
+						logger.info(msg)
+						print(f"[SYSTEM] {msg}")
+
+			db.commit()
+		except Exception as e:
+			logger.exception("Error in alarm check job: %s", e)
+		finally:
+			db.close()
+
 	def start(self) -> None:
 		if self.started:
 			return
@@ -47,6 +79,17 @@ class FloorRefreshScheduler:
 				misfire_grace_time=30,
 				replace_existing=True,
 			)
+		
+		# 报警检查任务：每5秒检查一次
+		self.scheduler.add_job(
+			func=self._alarm_check_job,
+			trigger=IntervalTrigger(seconds=5),
+			id="alarm_check",
+			max_instances=1,
+			coalesce=True,
+			replace_existing=True,
+		)
+
 		# Daily midnight job (00:00:00 local time)
 		self.scheduler.add_job(
 			func=self._daily_rollover_job,
@@ -89,5 +132,3 @@ class FloorRefreshScheduler:
 					logger.exception("export_monthly_and_reset_total failed")
 		finally:
 			db.close()
-
-
