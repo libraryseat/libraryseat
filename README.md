@@ -174,7 +174,6 @@ Note: Ensure backend server is running before starting the frontend.
 ### Authentication
 - `POST /auth/login` - User login
 - `POST /auth/register` - User registration
-- `POST /auth/logout` - User logout
 - `GET /auth/me` - Get current user info
 
 ### Seats and Floors
