@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+import threading
 from dataclasses import dataclass
 import os
 from pathlib import Path
@@ -11,7 +12,7 @@ import numpy as np
 import torch
 from sqlalchemy.orm import Session
 
-from ..models import Seat, Report, User
+from ..models import Seat
 from .rollover import perform_rollovers_if_needed
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -49,38 +50,59 @@ class VideoState:
 
 
 _video_states: Dict[str, VideoState] = {}
+_video_locks: Dict[str, threading.Lock] = {}
+_global_video_lock = threading.Lock()  # 保护全局字典的锁
 
 
 def _open_or_get_video_state(floor_id: str, stream_path: str) -> VideoState:
-	state = _video_states.get(floor_id)
-	if state and state.stream_path == stream_path and state.cap.isOpened():
-		return state
+	# 获取或创建该楼层的锁
+	with _global_video_lock:
+		if floor_id not in _video_locks:
+			_video_locks[floor_id] = threading.Lock()
+		floor_lock = _video_locks[floor_id]
+	
+	# 使用楼层锁保护视频状态访问
+	with floor_lock:
+		state = _video_states.get(floor_id)
+		if state and state.stream_path == stream_path:
+			# 检查视频句柄是否仍然有效
+			try:
+				if state.cap.isOpened():
+					return state
+				else:
+					# 视频句柄已关闭，需要重新打开
+					try:
+						state.cap.release()
+					except Exception:
+						pass
+			except Exception:
+				# 如果检查失败，尝试释放并重新打开
+				try:
+					state.cap.release()
+				except Exception:
+					pass
+		
+		# 需要创建新的视频句柄
+		cap = cv2.VideoCapture(stream_path)
+		if not cap.isOpened():
+			# create a dummy state to avoid reopening loop
+			state = VideoState(cap=cap, total_frames=0, fps=30.0, next_frame_idx=0, stream_path=stream_path)
+			_video_states[floor_id] = state
+			return state
 
-	cap = cv2.VideoCapture(stream_path)
-	if not cap.isOpened():
-		# create a dummy state to avoid reopening loop
-		state = VideoState(cap=cap, total_frames=0, fps=30.0, next_frame_idx=0, stream_path=stream_path)
+		fps = cap.get(cv2.CAP_PROP_FPS) or 0.0
+		if fps is None or fps <= 0.0 or fps != fps:  # check NaN
+			fps = 30.0  # default
+		total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+		if total_frames < 0:
+			total_frames = 0
+		state = VideoState(cap=cap, total_frames=total_frames, fps=float(fps), next_frame_idx=0, stream_path=stream_path)
 		_video_states[floor_id] = state
 		return state
-
-	fps = cap.get(cv2.CAP_PROP_FPS) or 0.0
-	if fps is None or fps <= 0.0 or fps != fps:  # check NaN
-		fps = 30.0  # default
-	total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
-	if total_frames < 0:
-		total_frames = 0
-	state = VideoState(cap=cap, total_frames=total_frames, fps=float(fps), next_frame_idx=0, stream_path=stream_path)
-	_video_states[floor_id] = state
-	return state
 
 
 class YOLODetector:
 	def __init__(self) -> None:
-		# Ensure yolov11 directory is in Python path for nets module import
-		import sys
-		if str(YOLO_DIR) not in sys.path:
-			sys.path.insert(0, str(YOLO_DIR))
-		
 		self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
 		weights_path = YOLO_DIR / "weights" / "yolo11x.pt"
 		ckpt = torch.load(weights_path.as_posix(), map_location=self.device, weights_only=False)
@@ -230,65 +252,85 @@ def refresh_floor(db: Session, floor_cfg: Dict[str, Any], sample_frames: int = 1
 
 	# Persistent handle + sequential advance
 	vstate = _open_or_get_video_state(floor_id, stream_path)
-	cap = vstate.cap
-	if not cap.isOpened():
-		# If stream can't open, do nothing
-		return list(existing.values())
+	
+	# 获取该楼层的锁，确保视频读取操作是线程安全的
+	with _global_video_lock:
+		if floor_id not in _video_locks:
+			_video_locks[floor_id] = threading.Lock()
+		floor_lock = _video_locks[floor_id]
+	
+	# 使用锁保护整个视频读取过程
+	with floor_lock:
+		cap = vstate.cap
+		if not cap.isOpened():
+			# If stream can't open, do nothing
+			return list(existing.values())
 
-	detector = get_detector()
+		detector = get_detector()
 
-	# Determine how many frames to sample this refresh: default 30 per second
-	sample_frames = int(round(vstate.fps)) if vstate.fps > 0 else 30
-	if sample_frames <= 0:
-		sample_frames = 30
+		# Determine how many frames to sample this refresh: default 30 per second
+		sample_frames = int(round(vstate.fps)) if vstate.fps > 0 else 30
+		if sample_frames <= 0:
+			sample_frames = 30
 
-	# Seek to next frame index (some backends may ignore seek; we still try)
-	if vstate.next_frame_idx > 0 and vstate.total_frames > 0:
-		cap.set(cv2.CAP_PROP_POS_FRAMES, vstate.next_frame_idx)
-
-	read_frames = 0
-	while read_frames < sample_frames:
-		ret, frame = cap.read()
-		if not ret:
-			# Attempt wrap-around if we know total frames
-			if vstate.total_frames > 0:
-				vstate.next_frame_idx = 0
+		# Seek to next frame index (some backends may ignore seek; we still try)
+		try:
+			if vstate.next_frame_idx > 0 and vstate.total_frames > 0:
 				cap.set(cv2.CAP_PROP_POS_FRAMES, vstate.next_frame_idx)
+		except Exception as e:
+			# 如果 seek 失败，从当前位置继续
+			pass
+
+		read_frames = 0
+		while read_frames < sample_frames:
+			try:
 				ret, frame = cap.read()
-				if not ret:
-					break
-			else:
+				if not ret or frame is None:
+					# Attempt wrap-around if we know total frames
+					if vstate.total_frames > 0:
+						vstate.next_frame_idx = 0
+						try:
+							cap.set(cv2.CAP_PROP_POS_FRAMES, vstate.next_frame_idx)
+							ret, frame = cap.read()
+							if not ret or frame is None:
+								break
+						except Exception:
+							break
+					else:
+						break
+				read_frames += 1
+				dets = detector.detect_frame(frame)
+
+				# For quicker mapping, build per-category points list
+				person_pts = [d.center for d in dets if d.cls_name == detector.person_name]
+				object_pts = [d.center for d in dets if d.cls_name in detector.object_names]
+
+				for s in seats_cfg:
+					seat_id = s["seat_id"]
+					roi = s["desk_roi"]
+					hit_person = any(point_in_polygon(pt, roi) for pt in person_pts)
+					hit_object = any(point_in_polygon(pt, roi) for pt in object_pts)
+					if hit_person:
+						counters[seat_id]["person"] += 1
+					if hit_object:
+						counters[seat_id]["object"] += 1
+					counters[seat_id]["frames"] += 1
+			except Exception as e:
+				# 如果读取失败，记录错误但继续处理
 				break
-		read_frames += 1
-		dets = detector.detect_frame(frame)
 
-		# For quicker mapping, build per-category points list
-		person_pts = [d.center for d in dets if d.cls_name == detector.person_name]
-		object_pts = [d.center for d in dets if d.cls_name in detector.object_names]
+		# Advance next frame index by wall-clock interval (e.g., 5s) instead of contiguous frames
+		try:
+			interval_seconds = int(os.getenv("REFRESH_INTERVAL_SECONDS", "5"))
+		except Exception:
+			interval_seconds = 5
+		step_frames = int(round(max(0.0, vstate.fps) * max(0, interval_seconds))) or read_frames
+		if vstate.total_frames > 0:
+			vstate.next_frame_idx = (vstate.next_frame_idx + step_frames) % vstate.total_frames
+		else:
+			vstate.next_frame_idx += step_frames
 
-		for s in seats_cfg:
-			seat_id = s["seat_id"]
-			roi = s["desk_roi"]
-			hit_person = any(point_in_polygon(pt, roi) for pt in person_pts)
-			hit_object = any(point_in_polygon(pt, roi) for pt in object_pts)
-			if hit_person:
-				counters[seat_id]["person"] += 1
-			if hit_object:
-				counters[seat_id]["object"] += 1
-			counters[seat_id]["frames"] += 1
-
-	# Advance next frame index by wall-clock interval (e.g., 5s) instead of contiguous frames
-	try:
-		interval_seconds = int(os.getenv("REFRESH_INTERVAL_SECONDS", "5"))
-	except Exception:
-		interval_seconds = 5
-	step_frames = int(round(max(0.0, vstate.fps) * max(0, interval_seconds))) or read_frames
-	if vstate.total_frames > 0:
-		vstate.next_frame_idx = (vstate.next_frame_idx + step_frames) % vstate.total_frames
-	else:
-		vstate.next_frame_idx += step_frames
-
-	# Apply thresholds
+	# Apply thresholds (在锁外执行，避免长时间持有锁)
 	now = now_ts
 	for s in seats_cfg:
 		seat = existing[s["seat_id"]]
@@ -313,92 +355,33 @@ def refresh_floor(db: Session, floor_cfg: Dict[str, Any], sample_frames: int = 1
 		seat.last_update_ts = now
 
 		# Update occupancy timer for malicious detection (object only)
-		# 注意：这个计时器应该在锁定状态下也继续工作，以便检测恶意占用
 		if object_present and not person_present:
 			if seat.occupancy_start_ts == 0:
 				seat.occupancy_start_ts = now
 		else:
-			# 如果检测到人员或没有物品，重置计时器
-			# 但如果座位已经被标记为恶意，且没有人员，保持计时器继续
-			# 只有在检测到人员时才重置
-			if person_present:
-				seat.occupancy_start_ts = 0
-				# 如果检测到人员，清除恶意标记
-				if seat.is_malicious:
-					seat.is_malicious = False
-
-		# 检测恶意占用（无论是否锁定，都要检测）
-		was_malicious = seat.is_malicious
-		if seat.occupancy_start_ts and (now - seat.occupancy_start_ts) >= 7200:
-			seat.is_malicious = True
-			# 如果从非恶意变为恶意，自动创建系统警报报告
-			if not was_malicious and seat.is_malicious:
-				_create_system_alert_report(db, seat, now)
+			seat.occupancy_start_ts = 0
 
 		# Apply visual state only if not locked
 		if now >= seat.lock_until_ts:
 			seat.is_empty = new_observed_is_empty
+			# Malicious after 2h (7200s)
+			if seat.occupancy_start_ts and (now - seat.occupancy_start_ts) >= 7200:
+				seat.is_malicious = True
 
 		db.add(seat)
 
-	db.commit()
+	try:
+		db.commit()
+	except Exception as e:
+		# 如果提交失败，回滚
+		try:
+			db.rollback()
+		except Exception:
+			pass
+		# 记录错误但不抛出异常，避免影响其他楼层
+		import logging
+		logging.getLogger("yolo_service").error(f"Failed to commit seat updates for floor {floor_id}: {e}")
+	
 	return list(existing.values())
-
-
-def _create_system_alert_report(db: Session, seat: Seat, now_ts: int) -> None:
-	"""
-	当检测到疑似占座（is_malicious）时，自动创建系统警报报告。
-	这个报告和用户举报一样，只是由系统自动生成。
-	"""
-	# 获取或创建系统用户
-	from ..auth import get_password_hash
-	system_user = db.query(User).filter(User.username == "system").first()
-	if not system_user:
-		# 创建系统用户（如果不存在）
-		system_user = User(
-			username="system",
-			pass_hash=get_password_hash("system"),  # 系统用户不需要登录
-			role="admin",
-		)
-		db.add(system_user)
-		db.flush()
-		db.refresh(system_user)
-	
-	# 检查是否已经有未处理的系统报告（避免重复创建）
-	# 查找最近24小时内的系统报告
-	recent_threshold = now_ts - 86400  # 24小时前
-	existing_report = (
-		db.query(Report)
-		.filter(Report.seat_id == seat.seat_id)
-		.filter(Report.status == "pending")
-		.filter(Report.reporter_id == system_user.id)  # 系统用户ID
-		.filter(Report.created_at >= recent_threshold)
-		.order_by(Report.created_at.desc())
-		.first()
-	)
-	
-	# 如果已经有未处理的系统报告，确保 is_reported 状态正确，然后返回
-	if existing_report:
-		# 确保座位状态与报告状态同步
-		if not seat.is_reported:
-			seat.is_reported = True
-			db.add(seat)
-		return
-	
-	# 创建系统警报报告
-	report = Report(
-		seat_id=seat.seat_id,
-		reporter_id=system_user.id,  # 使用系统用户的ID
-		text="系统自动检测：检测到疑似占座行为（物品占用超过2小时，未检测到人员）",
-		images=[],
-		status="pending",
-		created_at=now_ts,
-	)
-	db.add(report)
-	db.flush()
-	
-	# 更新座位的 is_reported 状态
-	seat.is_reported = True
-	db.add(seat)
 
 

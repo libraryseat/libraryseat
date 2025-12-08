@@ -212,7 +212,7 @@ def validate(args, params, model=None):
 @torch.no_grad()
 def inference(args, params):
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-    ckpt = torch.load('./weights/v11_x.pt', map_location=device, weights_only=False)
+    ckpt = torch.load('./weights/yolo11x.pt', map_location=device, weights_only=False)
     model = ckpt['model'].float().to(device)
     if device.startswith('cuda'):
         model.half()

@@ -26,9 +26,6 @@ class Seat(Base):
 	is_empty = Column(Boolean, default=True, nullable=False)
 	is_reported = Column(Boolean, default=False, nullable=False)
 	is_malicious = Column(Boolean, default=False, nullable=False)
-	
-	# 新增：标记是否为系统自动推送的警报
-	is_system_reported = Column(Boolean, default=False, nullable=False)
 
 	lock_until_ts = Column(Integer, default=0, nullable=False)
 
@@ -58,3 +55,5 @@ class Report(Base):
 	created_at = Column(Integer, nullable=False)  # epoch seconds
 
 	seat = relationship("Seat", back_populates="reports")
+
+

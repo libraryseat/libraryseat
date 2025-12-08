@@ -9,10 +9,10 @@ class ApiConfig {
   // 1. Chrome浏览器运行：取消注释下面一行，注释掉 IP 地址那一行
   // 2. 真机测试：注释掉下面一行，取消注释 IP 地址那一行
   
-  // Chrome浏览器（Mac本地开发）
+  // Chrome浏览器（Mac本地开发）- 使用 localhost 避免 CORS 问题
   // static const String baseUrl = 'http://localhost:8000';
   
-  // 使用 127.0.0.1 作为替代方案
+  // 使用 127.0.0.1 作为替代方案（如果 localhost 有问题）
   // static const String baseUrl = 'http://127.0.0.1:8000';
   
   // 真机测试（使用 Mac 的局域网 IP）

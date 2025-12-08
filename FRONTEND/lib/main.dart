@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'pages/floor_map_page.dart';
 import 'pages/login_page.dart';
+import 'utils/translations.dart';
 
 void main() {
   runApp(const LibrarySeatApp());
@@ -27,7 +28,7 @@ class _LibrarySeatAppState extends State<LibrarySeatApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: '图书馆座位管理',
+      title: AppTranslations.get('library_seat_management', 'en'),
       theme: ThemeData(
         // 主题配色使用绿色系，符合图书馆应用概念
         primarySwatch: Colors.green,

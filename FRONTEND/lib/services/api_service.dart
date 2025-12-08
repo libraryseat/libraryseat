@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http_parser/http_parser.dart';
 import '../config/api_config.dart';
 
 class ApiService {
@@ -50,7 +52,14 @@ class ApiService {
 
   // 刷新楼层
   Future<List<SeatResponse>> refreshFloor(String floor) async {
-    final response = await _dio.post('/floors/$floor/refresh');
+    // 刷新操作需要更长的超时时间（YOLO检测可能需要30秒以上）
+    final response = await _dio.post(
+      '/floors/$floor/refresh',
+      options: Options(
+        receiveTimeout: const Duration(seconds: 60), // 设置为60秒
+        sendTimeout: const Duration(seconds: 30),
+      ),
+    );
     return (response.data as List)
         .map((json) => SeatResponse.fromJson(json))
         .toList();
@@ -90,13 +99,28 @@ class ApiService {
     return SeatResponse.fromJson(response.data);
   }
 
+  // 用户登出
+  Future<void> logout() async {
+    try {
+      await _dio.post('/auth/logout');
+    } catch (e) {
+      // 即使登出接口失败，也继续清除本地 token
+      debugPrint('Logout API call failed: $e');
+    }
+  }
+
   // 提交举报
   Future<ReportResponse> submitReport({
     required String seatId,
     required int reporterId,
     String? text,
     List<XFile>? images,
+    ProgressCallback? onSendProgress,
   }) async {
+    debugPrint('DEBUG submitReport: seatId=$seatId, reporterId=$reporterId');
+    debugPrint('DEBUG submitReport: text=$text');
+    debugPrint('DEBUG submitReport: images=${images?.length ?? 0}');
+    
     final formData = FormData();
     formData.fields.addAll([
       MapEntry('seat_id', seatId),
@@ -107,20 +131,61 @@ class ApiService {
     }
     
     if (images != null && images.isNotEmpty) {
-      for (var image in images) {
-        final bytes = await image.readAsBytes();
-        formData.files.add(MapEntry(
-          'images',
-          MultipartFile.fromBytes(bytes, filename: image.name),
-        ));
+      debugPrint('DEBUG submitReport: Processing ${images.length} image(s)...');
+      for (var idx = 0; idx < images.length; idx++) {
+        final image = images[idx];
+        debugPrint('DEBUG submitReport: Image[$idx] - name=${image.name}, path=${image.path}');
+        
+        try {
+          final bytes = await image.readAsBytes();
+          debugPrint('DEBUG submitReport: Image[$idx] - size=${bytes.length} bytes');
+          
+          // Determine mime type based on extension
+          MediaType contentType = MediaType('image', 'jpeg'); // default
+          final name = image.name.toLowerCase();
+          if (name.endsWith('.png')) {
+            contentType = MediaType('image', 'png');
+          } else if (name.endsWith('.gif')) {
+            contentType = MediaType('image', 'gif');
+          } else if (name.endsWith('.webp')) {
+            contentType = MediaType('image', 'webp');
+          }
+          
+          debugPrint('DEBUG submitReport: Image[$idx] - contentType=${contentType.toString()}');
+
+          formData.files.add(MapEntry(
+            'images',
+            MultipartFile.fromBytes(
+              bytes, 
+              filename: image.name,
+              contentType: contentType,
+            ),
+          ));
+          debugPrint('DEBUG submitReport: Image[$idx] added to formData');
+        } catch (e) {
+          debugPrint('ERROR submitReport: Failed to process image[$idx]: $e');
+          rethrow;
+        }
       }
+      debugPrint('DEBUG submitReport: Total files in formData: ${formData.files.length}');
+    } else {
+      debugPrint('DEBUG submitReport: No images to upload');
     }
     
-    final response = await _dio.post(
-      '/reports',
-      data: formData,
-    );
-    return ReportResponse.fromJson(response.data);
+    try {
+      debugPrint('DEBUG submitReport: Sending POST request to /reports');
+      final response = await _dio.post(
+        '/reports',
+        data: formData,
+        onSendProgress: onSendProgress,
+      );
+      debugPrint('DEBUG submitReport: Response status: ${response.statusCode}');
+      debugPrint('DEBUG submitReport: Response data: ${response.data}');
+      return ReportResponse.fromJson(response.data);
+    } catch (e) {
+      debugPrint('ERROR submitReport: Request failed: $e');
+      rethrow;
+    }
   }
 }
 

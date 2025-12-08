@@ -31,6 +31,11 @@ class HealthOut(BaseModel):
 	version: str
 
 
+class UserCreate(BaseModel):
+	username: str
+	password: str
+
+
 class TokenOut(BaseModel):
 	access_token: str
 	token_type: str

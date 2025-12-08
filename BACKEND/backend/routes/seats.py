@@ -1,21 +1,17 @@
 from __future__ import annotations
 
-from typing import Dict, List
-
-from fastapi import APIRouter, Depends, Query
+from typing import List, Dict
+from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..models import Seat
-from ..schemas import FloorSummary, SeatOut, SeatStatsOut
-from ..services.color import compute_floor_color
-from ..services.response_builder import (
-	build_seat_out,
-	build_seat_stats_out,
-	get_or_404,
-)
+from ..schemas import SeatOut, FloorSummary, SeatStatsOut
+from ..services.color import compute_seat_color, compute_admin_color, compute_floor_color
 from ..services.roi_loader import load_floor_config
 from ..services.yolo_service import refresh_floor
+import time
+
 
 router = APIRouter(prefix="", tags=["seats"])
 
@@ -29,24 +25,24 @@ def list_seats(
 	if floor:
 		q = q.filter(Seat.floor_id == floor)
 	seats = q.all()
-	
-	# Mock Data Logic for Demo
-	if floor == "F3":
-		# F3 默认为全占用（灰色，0个空座位）
-		for s in seats:
-			s.is_empty = False
-			s.is_reported = False
-			s.is_malicious = False
-			s.has_power = False # 假设无电插座
-	elif floor == "test":
-		# test 楼层显示红色（全占用）
-		for s in seats:
-			s.is_empty = False
-			s.is_reported = False
-			s.is_malicious = False
-			s.has_power = False
-			
-	return [build_seat_out(s) for s in seats]
+	out: List[SeatOut] = []
+	for s in seats:
+		base_color = compute_seat_color(s.is_empty, s.has_power, s.is_reported)
+		admin_color = compute_admin_color(base_color, s.is_malicious, s.is_empty, s.has_power)
+		out.append(
+			SeatOut(
+				seat_id=s.seat_id,
+				floor_id=s.floor_id,
+				has_power=s.has_power,
+				is_empty=s.is_empty,
+				is_reported=s.is_reported,
+				is_malicious=s.is_malicious,
+				lock_until_ts=s.lock_until_ts,
+				seat_color=base_color,
+				admin_color=admin_color,
+			)
+		)
+	return out
 
 
 @router.get("/seats/{seat_id}", response_model=SeatOut)
@@ -54,41 +50,35 @@ def get_seat(
 	seat_id: str,
 	db: Session = Depends(get_db),
 ) -> SeatOut:
-	seat = get_or_404(db, Seat, seat_id, id_field=Seat.seat_id)
-	return build_seat_out(seat)
+	s = db.query(Seat).filter(Seat.seat_id == seat_id).first()
+	if not s:
+		raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="seat not found")
+	base_color = compute_seat_color(s.is_empty, s.has_power, s.is_reported)
+	admin_color = compute_admin_color(base_color, s.is_malicious, s.is_empty, s.has_power)
+	return SeatOut(
+		seat_id=s.seat_id,
+		floor_id=s.floor_id,
+		has_power=s.has_power,
+		is_empty=s.is_empty,
+		is_reported=s.is_reported,
+		is_malicious=s.is_malicious,
+		lock_until_ts=s.lock_until_ts,
+		seat_color=base_color,
+		admin_color=admin_color,
+	)
 
 
 @router.get("/floors", response_model=List[FloorSummary])
 def list_floors(db: Session = Depends(get_db)) -> List[FloorSummary]:
 	seats = db.query(Seat).all()
-	
-	# Apply mock data logic to summary as well
-	for s in seats:
-		if s.floor_id == "F3":
-			s.is_empty = False  # F3全占用
-		elif s.floor_id == "test":
-			s.is_empty = False
-
 	by_floor: Dict[str, Dict[str, int]] = {}
 	for s in seats:
 		stats = by_floor.setdefault(s.floor_id, {"empty": 0, "total": 0})
 		stats["total"] += 1
 		if s.is_empty:
 			stats["empty"] += 1
-	
-	# 确保 F3 楼层有数据，如果没有座位数据，创建默认统计
-	if "F3" not in by_floor:
-		# 如果 F3 没有座位数据，创建一个全占用的统计
-		by_floor["F3"] = {"empty": 0, "total": 1}  # 至少有一个座位，0个空座位
-			
 	out: List[FloorSummary] = []
 	for floor_id, stats in sorted(by_floor.items()):
-		# 特殊处理 F3：强制设置为全占用（红色）
-		if floor_id == "F3":
-			stats["empty"] = 0
-			if stats["total"] == 0:
-				stats["total"] = 1  # 确保至少有一个座位
-		
 		color = compute_floor_color(stats["empty"], stats["total"])
 		out.append(
 			FloorSummary(
@@ -106,12 +96,76 @@ def refresh_floor_endpoint(
 	floor: str,
 	db: Session = Depends(get_db),
 ) -> List[SeatOut]:
-	cfg = load_floor_config(floor)
-	seats = refresh_floor(db, cfg)
-	return [build_seat_out(s) for s in seats if s.floor_id == floor]
+	try:
+		cfg = load_floor_config(floor)
+	except Exception as e:
+		# 如果楼层配置不存在（如 F3/F4），返回当前数据库中的座位状态
+		seats = db.query(Seat).filter(Seat.floor_id == floor).all()
+		out: List[SeatOut] = []
+		for s in seats:
+			base_color = compute_seat_color(s.is_empty, s.has_power, s.is_reported)
+			admin_color = compute_admin_color(base_color, s.is_malicious, s.is_empty, s.has_power)
+			out.append(
+				SeatOut(
+					seat_id=s.seat_id,
+					floor_id=s.floor_id,
+					has_power=s.has_power,
+					is_empty=s.is_empty,
+					is_reported=s.is_reported,
+					is_malicious=s.is_malicious,
+					lock_until_ts=s.lock_until_ts,
+					seat_color=base_color,
+					admin_color=admin_color,
+				)
+			)
+		return out
+	
+	try:
+		seats = refresh_floor(db, cfg)
+	except Exception as e:
+		# 如果刷新失败（如视频文件不存在），返回当前数据库中的座位状态
+		seats = db.query(Seat).filter(Seat.floor_id == floor).all()
+	
+	out: List[SeatOut] = []
+	for s in seats:
+		if s.floor_id != floor:
+			continue
+		base_color = compute_seat_color(s.is_empty, s.has_power, s.is_reported)
+		admin_color = compute_admin_color(base_color, s.is_malicious, s.is_empty, s.has_power)
+		out.append(
+			SeatOut(
+				seat_id=s.seat_id,
+				floor_id=s.floor_id,
+				has_power=s.has_power,
+				is_empty=s.is_empty,
+				is_reported=s.is_reported,
+				is_malicious=s.is_malicious,
+				lock_until_ts=s.lock_until_ts,
+				seat_color=base_color,
+				admin_color=admin_color,
+			)
+		)
+	return out
 
 
 @router.get("/stats/seats/{seat_id}", response_model=SeatStatsOut)
 def get_seat_stats(seat_id: str, db: Session = Depends(get_db)) -> SeatStatsOut:
-	seat = get_or_404(db, Seat, seat_id, id_field=Seat.seat_id)
-	return build_seat_stats_out(seat)
+	s = db.query(Seat).filter(Seat.seat_id == seat_id).first()
+	if not s:
+		raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="seat not found")
+	now = int(time.time())
+	object_only_sec = 0
+	if s.occupancy_start_ts and not s.is_empty:
+		object_only_sec = max(0, now - s.occupancy_start_ts)
+	return SeatStatsOut(
+		seat_id=s.seat_id,
+		daily_empty_seconds=s.daily_empty_seconds,
+		total_empty_seconds=s.total_empty_seconds,
+		change_count=s.change_count,
+		last_update_ts=s.last_update_ts,
+		last_state_is_empty=s.last_state_is_empty,
+		occupancy_start_ts=s.occupancy_start_ts,
+		object_only_occupy_seconds=object_only_sec,
+		is_malicious=s.is_malicious,
+	)
+

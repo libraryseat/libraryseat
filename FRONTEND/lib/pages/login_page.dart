@@ -87,25 +87,29 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      // OAuth2PasswordRequestForm expects form-urlencoded data, not JSON
-      // 使用FormData确保Flutter Web正确处理
-      final formData = FormData.fromMap({
+      // OAuth2PasswordRequestForm expects form-urlencoded data
+      // Use standard Map for x-www-form-urlencoded
+      final data = {
         'username': id,
         'password': pwd,
-      });
+      };
       
       final res = await _dio.post(
         '/auth/login',
-        data: formData,
+        data: data,
         options: Options(
-          contentType: 'application/x-www-form-urlencoded',
+          contentType: Headers.formUrlEncodedContentType,
           headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
+            // 'Content-Type': 'application/x-www-form-urlencoded', // handled by contentType
           },
           // Flutter Web需要明确设置
           receiveDataWhenStatusError: true,
         ),
       );
+      debugPrint('Login Response Status: ${res.statusCode}');
+      debugPrint('Login Response Data: ${res.data}');
+      debugPrint('Login Response Type: ${res.data.runtimeType}');
+
       final token = res.data['access_token'];
       final role = res.data['role'] as String?;
       final username = res.data['username'] as String?;
@@ -136,8 +140,9 @@ class _LoginPageState extends State<LoginPage> {
         msg = 'Network error: ${e.type}\n${e.message}';
       }
       _showError(msg);
-    } catch (_) {
-      _showError('Unexpected error');
+    } catch (e, stackTrace) {
+      debugPrint('Login Error: $e\n$stackTrace');
+      _showError('Unexpected error: $e');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -179,6 +184,10 @@ class _LoginPageState extends State<LoginPage> {
           contentType: 'application/json',
         ),
       );
+      debugPrint('Login Response Status: ${res.statusCode}');
+      debugPrint('Login Response Data: ${res.data}');
+      debugPrint('Login Response Type: ${res.data.runtimeType}');
+
       final token = res.data['access_token'];
       final role = res.data['role'] as String?;
       final username = res.data['username'] as String?;
@@ -205,8 +214,9 @@ class _LoginPageState extends State<LoginPage> {
         msg = 'Server error: ${e.response?.statusCode}';
       }
       _showError(msg);
-    } catch (_) {
-      _showError('Unexpected error');
+    } catch (e, stackTrace) {
+      debugPrint('Login Error: $e\n$stackTrace');
+      _showError('Unexpected error: $e');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -299,18 +309,6 @@ class _LoginPageState extends State<LoginPage> {
                         fontWeight: FontWeight.bold,
                         color: Colors.black87,
                         letterSpacing: 0.5,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    SizedBox(height: isMobile ? 6 : 8),
-                    Text(
-                      _isRegisterMode 
-                          ? (t('register_prompt') ?? 'Create a new account')
-                          : (t('login_prompt') ?? 'Sign in to continue'),
-                      style: TextStyle(
-                        fontSize: isMobile ? 14 : 16,
-                        color: Colors.grey[600],
-                        fontWeight: FontWeight.w400,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -508,20 +506,23 @@ class _LoginPageState extends State<LoginPage> {
                           widget.onLocaleChange!(locale);
                         }
                       },
-                      itemBuilder: (context) => [
-                        const PopupMenuItem(
-                          value: 'en',
-                          child: Text('English'),
-                        ),
-                        const PopupMenuItem(
-                          value: 'zh_CN',
-                          child: Text('简体中文'),
-                        ),
-                        const PopupMenuItem(
-                          value: 'zh_TW',
-                          child: Text('繁體中文'),
-                        ),
-                      ],
+                      itemBuilder: (context) {
+                        final currentLocale = Localizations.localeOf(context);
+                        return [
+                          const PopupMenuItem(
+                            value: 'en',
+                            child: Text('English'),
+                          ),
+                          PopupMenuItem(
+                            value: 'zh_CN',
+                            child: Text(AppTranslations.get('simplified_chinese', currentLocale.languageCode)),
+                          ),
+                          PopupMenuItem(
+                            value: 'zh_TW',
+                            child: Text(AppTranslations.get('traditional_chinese', currentLocale.languageCode)),
+                          ),
+                        ];
+                      },
                     ),
                   ],
                 ),
@@ -536,7 +537,7 @@ class _LoginPageState extends State<LoginPage> {
   String _getCurrentLanguageLabel() {
     final locale = Localizations.localeOf(context);
     if (locale.languageCode == 'zh') {
-      return locale.countryCode == 'TW' ? '繁體中文' : '简体中文';
+      return locale.countryCode == 'TW' ? AppTranslations.get('traditional_chinese', locale.languageCode) : AppTranslations.get('simplified_chinese', locale.languageCode);
     }
     return 'English';
   }

@@ -1,6 +1,7 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:dio/dio.dart';
 import '../services/api_service.dart';
 import '../utils/translations.dart';
 import '../models/seat_model.dart';
@@ -36,7 +37,6 @@ class AdminPage extends StatefulWidget {
 class _AdminPageState extends State<AdminPage> {
   final ApiService _apiService = ApiService();
   final TextEditingController _searchController = TextEditingController();
-  final Dio _dio = Dio(BaseOptions(baseUrl: ApiConfig.baseUrl));
   List<AnomalyResponse> _anomalies = [];
   List<AnomalyResponse> _filteredAnomalies = [];
   Set<String> _selectedSeats = {};
@@ -50,7 +50,6 @@ class _AdminPageState extends State<AdminPage> {
   @override
   void initState() {
     super.initState();
-    _initDio();
     _initializeMockData();
     _loadAnomalies();
   }
@@ -140,19 +139,6 @@ class _AdminPageState extends State<AdminPage> {
     return false;
   }
 
-  void _initDio() {
-    _dio.interceptors.add(InterceptorsWrapper(
-      onRequest: (options, handler) async {
-        final prefs = await SharedPreferences.getInstance();
-        final token = prefs.getString('token');
-        if (token != null) {
-          options.headers['Authorization'] = 'Bearer $token';
-        }
-        handler.next(options);
-      },
-    ));
-  }
-
   @override
   void dispose() {
     _searchController.dispose();
@@ -160,44 +146,71 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   Future<void> _loadAnomalies() async {
+    // 如果正在加载，忽略重复请求
+    if (_loading) {
+      return;
+    }
+    
+    String t(String key) => AppTranslations.get(key, _currentLocale.languageCode);
     setState(() => _loading = true);
     try {
-      final anomalies = await _apiService.getAnomalies();
+      // 设置超时，防止请求卡住
+      final anomalies = await _apiService.getAnomalies()
+          .timeout(const Duration(seconds: 15), onTimeout: () {
+        throw TimeoutException(AppTranslations.get('load_anomalies_timeout', _currentLocale.languageCode), const Duration(seconds: 15));
+      });
+      
       // 获取伪数据的异常
       final mockAnomalies = _getMockAnomalies();
       // 合并后端异常和伪数据异常
       final allAnomalies = [...anomalies, ...mockAnomalies];
       // 按楼层排序（F1, F2, F3, F4）
       allAnomalies.sort((a, b) => a.floorId.compareTo(b.floorId));
-      setState(() {
-        _anomalies = allAnomalies;
-        _filteredAnomalies = allAnomalies;
-        _selectedSeats = allAnomalies
-            .where((a) => a.isMalicious)
-            .map((a) => a.seatId)
-            .toSet()
-            .cast<String>();
-      });
+      
+      if (mounted) {
+        setState(() {
+          _anomalies = allAnomalies;
+          _filteredAnomalies = allAnomalies;
+          _selectedSeats = allAnomalies
+              .where((a) => a.isMalicious)
+              .map((a) => a.seatId)
+              .toSet()
+              .cast<String>();
+        });
+      }
     } catch (e) {
       // 即使后端失败，也显示伪数据异常
       final mockAnomalies = _getMockAnomalies();
       mockAnomalies.sort((a, b) => a.floorId.compareTo(b.floorId));
-      setState(() {
-        _anomalies = mockAnomalies;
-        _filteredAnomalies = mockAnomalies;
-        _selectedSeats = mockAnomalies
-            .where((a) => a.isMalicious)
-            .map((a) => a.seatId)
-            .toSet()
-            .cast<String>();
-      });
+      
       if (mounted) {
+        setState(() {
+          _anomalies = mockAnomalies;
+          _filteredAnomalies = mockAnomalies;
+          _selectedSeats = mockAnomalies
+              .where((a) => a.isMalicious)
+              .map((a) => a.seatId)
+              .toSet()
+              .cast<String>();
+        });
+        
+        // 显示错误信息
+        String errorMsg = t('load_anomalies_failed');
+        if (e is TimeoutException) {
+          errorMsg = t('load_timeout_retry');
+        } else if (e.toString().contains('SocketException') || e.toString().contains('connection')) {
+          errorMsg = t('network_connection_failed');
+        } else {
+          errorMsg = '${t('load_failed')}: ${e.toString().split('\n').first}';
+        }
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load anomalies: $e')),
+          SnackBar(content: Text(errorMsg)),
         );
       }
     } finally {
-      setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -216,7 +229,7 @@ class _AdminPageState extends State<AdminPage> {
     });
   }
 
-  Future<void> _toggleAnomaly(AnomalyResponse anomaly) async {
+  Future<void> _toggleAnomaly(AnomalyResponse anomaly, [bool? previousSelectedState]) async {
     // 检查是否是伪数据（F3或F4，且没有报告ID）
     final isMockData = (anomaly.floorId == 'F3' || anomaly.floorId == 'F4') && anomaly.lastReportId == null;
     
@@ -228,19 +241,28 @@ class _AdminPageState extends State<AdminPage> {
     
     if (anomaly.lastReportId == null) return;
 
+    // 保存点击前的选中状态，以便失败时回滚
+    // 如果 previousSelectedState 为 null，则从当前状态推断（向后兼容）
+    final wasSelected = previousSelectedState ?? _selectedSeats.contains(anomaly.seatId);
+    
     setState(() => _loading = true);
     try {
       final updated = await _apiService.confirmAnomaly(anomaly.lastReportId!);
       // 确认异常后自动上锁5分钟
       await _apiService.lockSeat(anomaly.seatId, minutes: 5);
       
-      // 确认异常后，座位会被清除所有异常标记，所以应该从列表中移除
+      // 确认异常后，座位会被清除所有异常标记，但为了UI反馈，我们保留它并更新状态
       setState(() {
-        // 从异常列表中移除（因为确认后它不再是异常）
-        _anomalies.removeWhere((a) => a.seatId == anomaly.seatId);
-        _filteredAnomalies.removeWhere((a) => a.seatId == anomaly.seatId);
-        _selectedSeats.remove(anomaly.seatId);
+        // 更新列表中的项，而不是移除
+        final index = _anomalies.indexWhere((a) => a.seatId == anomaly.seatId);
+        if (index != -1) {
+          _anomalies[index] = updated;
+        }
+        // 重新过滤以保持搜索状态
         _filterAnomalies(_searchController.text);
+        
+        // 保持选中状态（如果之前是选中的，保持选中；如果之前未选中，保持未选中）
+        // 因为确认异常后，isMalicious 会变为 false，但选中状态应该保持不变
       });
       
       if (mounted) {
@@ -252,6 +274,15 @@ class _AdminPageState extends State<AdminPage> {
         );
       }
     } catch (e) {
+      // API 调用失败时，回滚选中状态
+      setState(() {
+        if (wasSelected) {
+          _selectedSeats.add(anomaly.seatId);
+        } else {
+          _selectedSeats.remove(anomaly.seatId);
+        }
+      });
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -623,54 +654,69 @@ class _AdminPageState extends State<AdminPage> {
       context: context,
       barrierDismissible: true,
       builder: (BuildContext context) {
+        final screenWidth = MediaQuery.of(context).size.width;
         return AlertDialog(
           backgroundColor: AppColors.dialogBackground,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           contentPadding: const EdgeInsets.all(24),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              const Icon(
-                Icons.help_outline,
-                color: Color(0xFFFF9800),
-                size: 48.0,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Are you sure you want to clear this anomaly?',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.grey.shade800,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
+          insetPadding: EdgeInsets.symmetric(
+            horizontal: screenWidth < 400 ? 16 : 24,
+            vertical: 24,
+          ),
+          content: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: screenWidth < 400 ? screenWidth - 32 : 400,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                const Icon(
+                  Icons.help_outline,
+                  color: Color(0xFFFF9800),
+                  size: 48.0,
                 ),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: <Widget>[
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(false),
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.grey.shade600,
-                      minimumSize: const Size(120, 40),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                    child: Text(t('cancel')),
+                const SizedBox(height: 16),
+                Text(
+                  'Are you sure you want to clear this anomaly?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.grey.shade800,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
                   ),
-                  ElevatedButton(
-                    onPressed: () => Navigator.of(context).pop(true),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AdminColors.deleteButton,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(120, 40),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: <Widget>[
+                    Flexible(
+                      child: TextButton(
+                        onPressed: () => Navigator.of(context).pop(false),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.grey.shade600,
+                          minimumSize: const Size(100, 40),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        child: Text(t('cancel'), overflow: TextOverflow.ellipsis),
+                      ),
                     ),
-                    child: Text(t('confirm')),
-                  ),
-                ],
-              ),
-            ],
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.of(context).pop(true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AdminColors.deleteButton,
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size(100, 40),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        child: Text(t('confirm'), overflow: TextOverflow.ellipsis),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -689,9 +735,9 @@ class _AdminPageState extends State<AdminPage> {
           children: [
             _buildLangOption('English', const Locale('en')),
             const Divider(),
-            _buildLangOption('简体中文', const Locale('zh', 'CN')),
+            _buildLangOption(AppTranslations.get('simplified_chinese', _currentLocale.languageCode), const Locale('zh', 'CN')),
             const Divider(),
-            _buildLangOption('繁體中文', const Locale('zh', 'TW')),
+            _buildLangOption(AppTranslations.get('traditional_chinese', _currentLocale.languageCode), const Locale('zh', 'TW')),
           ],
         ),
       ),
@@ -731,10 +777,19 @@ class _AdminPageState extends State<AdminPage> {
             ),
             onPressed: () async {
               Navigator.pop(context);
+              // 调用后端登出接口
+              try {
+                await _apiService.logout();
+              } catch (e) {
+                // 即使登出接口失败，也继续清除本地 token
+                debugPrint('Logout failed: $e');
+              }
+              // 清除本地登录信息
               final prefs = await SharedPreferences.getInstance();
               await prefs.remove('token');
               await prefs.remove('username');
               await prefs.remove('role');
+              await prefs.remove('user_id');
               if (!mounted) return;
               Navigator.of(context).pushAndRemoveUntil(
                 MaterialPageRoute(
@@ -977,7 +1032,19 @@ class _AdminPageState extends State<AdminPage> {
                                   ),
                                   // 左侧的勾选框
                                   leading: GestureDetector(
-                                    onTap: () => _toggleAnomaly(anomaly),
+                                    onTap: () {
+                                      // 立即更新UI状态，提供即时反馈
+                                      final wasSelected = _selectedSeats.contains(anomaly.seatId);
+                                      setState(() {
+                                        if (wasSelected) {
+                                          _selectedSeats.remove(anomaly.seatId);
+                                        } else {
+                                          _selectedSeats.add(anomaly.seatId);
+                                        }
+                                      });
+                                      // 然后执行实际的切换操作（传入原始状态以便失败时回滚）
+                                      _toggleAnomaly(anomaly, wasSelected);
+                                    },
                                     child: Container(
                                       width: isMobile ? 28 : 32,
                                       height: isMobile ? 28 : 32,

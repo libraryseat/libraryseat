@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/seat_model.dart';
 import '../utils/translations.dart';
 import '../services/api_service.dart';
+import '../config/api_config.dart';
 import 'login_page.dart';
 import 'admin_page.dart';
 
@@ -26,6 +27,7 @@ class _FloorMapPageState extends State<FloorMapPage> {
   bool _isAdmin = false;
   bool _loading = false;
   bool _useApiData = true; // 是否使用 API 数据，如果 API 失败则回退到硬编码数据
+  Locale _currentLocale = const Locale('en');
 
   // 从 API 获取的数据
   Map<String, List<SeatResponse>> _apiSeats = {};
@@ -36,6 +38,10 @@ class _FloorMapPageState extends State<FloorMapPage> {
   
   // 伪数据定时器（用于F3和F4的演示数据）
   Timer? _mockDataTimer;
+  
+  // 刷新状态锁，防止并发刷新
+  bool _isRefreshing = false;
+  bool _isSilentRefreshing = false;
   
   // F3和F4的伪数据状态
   List<Seat> _mockF3Seats = [];
@@ -153,12 +159,19 @@ class _FloorMapPageState extends State<FloorMapPage> {
 
   // 静默刷新：只刷新当前楼层的座位数据，不显示loading状态
   Future<void> _silentRefresh() async {
-    if (!_useApiData || _floors.isEmpty) return;
+    // 如果正在刷新或静默刷新，跳过
+    if (_isRefreshing || _isSilentRefreshing || !_useApiData || _floors.isEmpty || !mounted) {
+      return;
+    }
     
+    _isSilentRefreshing = true;
     try {
-      // 只刷新当前楼层的座位数据
+      // 只刷新当前楼层的座位数据，设置超时
       final floorId = _getCurrentFloorId();
-      final seats = await _apiService.getSeats(floor: floorId);
+      final seats = await _apiService.getSeats(floor: floorId)
+          .timeout(const Duration(seconds: 8), onTimeout: () {
+        throw TimeoutException(AppTranslations.get('get_seats_timeout', _currentLocale.languageCode), const Duration(seconds: 8));
+      });
       
       // 检查数据是否有变化
       final currentSeats = _apiSeats[floorId];
@@ -172,7 +185,10 @@ class _FloorMapPageState extends State<FloorMapPage> {
       }
       
       // 同时更新楼层统计信息（静默）- 总是更新，因为统计可能变化
-      final floors = await _apiService.getFloors();
+      final floors = await _apiService.getFloors()
+          .timeout(const Duration(seconds: 5), onTimeout: () {
+        throw TimeoutException(AppTranslations.get('get_floors_timeout', _currentLocale.languageCode), const Duration(seconds: 5));
+      });
       if (mounted) {
         setState(() {
           _floors = floors;
@@ -180,7 +196,11 @@ class _FloorMapPageState extends State<FloorMapPage> {
       }
     } catch (e) {
       // 静默失败，不显示错误提示，避免打扰用户
-      print('Silent refresh failed: $e');
+      if (e is! TimeoutException) {
+        print('Silent refresh failed: $e');
+      }
+    } finally {
+      _isSilentRefreshing = false;
     }
   }
 
@@ -243,11 +263,21 @@ class _FloorMapPageState extends State<FloorMapPage> {
         return seat; // 保持管理员操作后的状态
       }
       final newStatus = _getRandomStatus(seat.id, random);
+      // 如果新状态是suspicious，需要保留previousStatus
+      // 对于F4-08，如果之前没有previousStatus，设置为'occupied'（假设举报前是被占用的）
+      String? previousStatus = seat.previousStatus;
+      if (newStatus == 'suspicious' && previousStatus == null) {
+        // 如果之前没有previousStatus，根据座位ID判断（F4-08假设举报前是occupied）
+        if (seat.id == 'F4-08') {
+          previousStatus = 'occupied';
+        }
+      }
       return Seat(
         id: seat.id,
         status: newStatus,
         top: seat.top,
         left: seat.left,
+        previousStatus: previousStatus,
       );
     }).toList();
     
@@ -374,16 +404,27 @@ class _FloorMapPageState extends State<FloorMapPage> {
   }
 
   Future<void> _loadData() async {
+    // 如果正在加载，忽略重复请求
+    if (_loading) {
+      return;
+    }
+    
     setState(() => _loading = true);
     try {
-      // 获取楼层列表
-      final floors = await _apiService.getFloors();
+      // 获取楼层列表，设置超时
+      final floors = await _apiService.getFloors()
+          .timeout(const Duration(seconds: 10), onTimeout: () {
+        throw TimeoutException(AppTranslations.get('get_floors_list_timeout', _currentLocale.languageCode), const Duration(seconds: 10));
+      });
 
-      // 获取所有楼层的座位
+      // 获取所有楼层的座位，设置超时
       final Map<String, List<SeatResponse>> seatsMap = {};
       for (var floor in floors) {
         try {
-          final seats = await _apiService.getSeats(floor: floor.floorId);
+          final seats = await _apiService.getSeats(floor: floor.floorId)
+              .timeout(const Duration(seconds: 8), onTimeout: () {
+            throw TimeoutException(AppTranslations.get('get_floor_seats_timeout', _currentLocale.languageCode).replaceAll('{floor}', floor.floorId), const Duration(seconds: 8));
+          });
           seatsMap[floor.floorId] = seats;
         } catch (e) {
           // 如果某个楼层获取失败，继续处理其他楼层
@@ -391,34 +432,36 @@ class _FloorMapPageState extends State<FloorMapPage> {
         }
       }
 
-      setState(() {
-        _floors = floors;
-        _apiSeats = seatsMap;
-        _useApiData = true;
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _floors = floors;
+          _apiSeats = seatsMap;
+          _useApiData = true;
+          _loading = false;
+        });
+      }
     } catch (e) {
       // API 失败时回退到硬编码数据
       print('Failed to load data from API: $e');
-      setState(() {
-        _useApiData = false;
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _useApiData = false;
+          _loading = false;
+        });
+      }
     }
   }
 
   Future<void> _refreshCurrentFloor() async {
+    // 如果正在刷新，忽略重复请求
+    if (_isRefreshing || _loading) {
+      return;
+    }
+    
     final floorId = _getCurrentFloorId();
-    setState(() => _loading = true);
-    try {
-      // 先触发后端刷新
-      await _apiService.refreshFloor(floorId);
-      // 然后获取最新数据
-      final seats = await _apiService.getSeats(floor: floorId);
-      setState(() {
-        _apiSeats[floorId] = seats;
-        _loading = false;
-      });
+    
+    // F3 和 F4 使用伪数据，不需要刷新后端
+    if (floorId == 'F3' || floorId == 'F4') {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -428,16 +471,77 @@ class _FloorMapPageState extends State<FloorMapPage> {
           ),
         );
       }
-    } catch (e) {
-      setState(() => _loading = false);
+      return;
+    }
+    
+    _isRefreshing = true;
+    setState(() => _loading = true);
+    
+    try {
+      // 先触发后端刷新，设置超时
+      await _apiService.refreshFloor(floorId)
+          .timeout(const Duration(seconds: 30), onTimeout: () {
+        throw TimeoutException(AppTranslations.get('refresh_floor_timeout', _currentLocale.languageCode), const Duration(seconds: 30));
+      });
+      
+      // 然后获取最新数据，设置超时
+      final seats = await _apiService.getSeats(floor: floorId)
+          .timeout(const Duration(seconds: 10), onTimeout: () {
+        throw TimeoutException(AppTranslations.get('get_seats_timeout', _currentLocale.languageCode), const Duration(seconds: 10));
+      });
+      
       if (mounted) {
+        setState(() {
+          _apiSeats[floorId] = seats;
+          _loading = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${t('refresh_failed') ?? '刷新失败'}: $e'),
-            duration: const Duration(seconds: 2),
+            content: Text(t('refresh_success') ?? '刷新成功'),
+            duration: const Duration(seconds: 1),
             behavior: SnackBarBehavior.floating,
           ),
         );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loading = false);
+        // 显示更友好的错误信息
+        String errorMsg = t('refresh_failed') ?? '刷新失败';
+        if (e is TimeoutException) {
+          errorMsg = t('refresh_timeout_retry');
+        } else if (e.toString().contains('DioException') && 
+                   (e.toString().contains('receive timeout') || e.toString().contains('timeout'))) {
+          errorMsg = t('refresh_timeout_retry');
+        } else if (e.toString().contains('500')) {
+          errorMsg = t('server_error_retry');
+        } else if (e.toString().contains('404')) {
+          errorMsg = t('floor_config_not_found');
+        } else if (e.toString().contains('SocketException') || 
+                   e.toString().contains('connection') ||
+                   e.toString().contains('Connection')) {
+          errorMsg = t('network_connection_failed');
+        } else {
+          // 简化错误消息，只显示主要部分
+          final errorStr = e.toString();
+          if (errorStr.length > 100) {
+            errorMsg = '${t('refresh_failed') ?? '刷新失败'}: ${errorStr.substring(0, 100)}...';
+          } else {
+            errorMsg = '${t('refresh_failed') ?? '刷新失败'}: ${errorStr.split('\n').first}';
+          }
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMsg),
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      _isRefreshing = false;
+      if (mounted && _loading) {
+        setState(() => _loading = false);
       }
     }
   }
@@ -550,6 +654,7 @@ class _FloorMapPageState extends State<FloorMapPage> {
 
   String t(String key) {
     final locale = Localizations.localeOf(context);
+    _currentLocale = locale; // 同步当前语言设置
     String languageCode = locale.languageCode;
 
     if (languageCode == 'zh') {
@@ -833,9 +938,9 @@ class _FloorMapPageState extends State<FloorMapPage> {
           children: [
             _buildLangOption('English', const Locale('en')),
             const Divider(),
-            _buildLangOption('简体中文', const Locale('zh', 'CN')),
+            _buildLangOption(AppTranslations.get('simplified_chinese', _currentLocale.languageCode), const Locale('zh', 'CN')),
             const Divider(),
-            _buildLangOption('繁體中文', const Locale('zh', 'TW')),
+            _buildLangOption(AppTranslations.get('traditional_chinese', _currentLocale.languageCode), const Locale('zh', 'TW')),
           ],
         ),
       ),
@@ -846,6 +951,9 @@ class _FloorMapPageState extends State<FloorMapPage> {
     return ListTile(
       title: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
       onTap: () {
+        setState(() {
+          _currentLocale = locale; // 更新当前语言设置
+        });
         widget.onLocaleChange(locale);
         Navigator.pop(context);
       },
@@ -873,11 +981,19 @@ class _FloorMapPageState extends State<FloorMapPage> {
             ),
             onPressed: () async {
               Navigator.pop(context);
+              // 调用后端登出接口
+              try {
+                await _apiService.logout();
+              } catch (e) {
+                // 即使登出接口失败，也继续清除本地 token
+                debugPrint('Logout failed: $e');
+              }
               // Clear login session
               final prefs = await SharedPreferences.getInstance();
               await prefs.remove('token');
               await prefs.remove('username');
               await prefs.remove('role');
+              await prefs.remove('user_id');
               // Navigate back to login page
               if (context.mounted) {
                 Navigator.of(context).pushAndRemoveUntil(
@@ -936,6 +1052,25 @@ class _FloorMapPageState extends State<FloorMapPage> {
               _buildInfoRow("${t('floor')}:", _buildFloorData()[_selectedFloorIndex].label),
               _buildInfoRow("${t('status')}:", t(statusKey), color: seat.getDisplayColor(_isAdmin)),
               const SizedBox(height: 25),
+              if (_isAdmin)
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.confirmButton,
+                      foregroundColor: Colors.black87,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    icon: const Icon(Icons.photo_library),
+                    label: Text(t('view_latest_report_images')),
+                    onPressed: () async {
+                      Navigator.pop(context);
+                      await _showLatestReportImages(seat.id);
+                    },
+                  ),
+                ),
+              if (_isAdmin) const SizedBox(height: 12),
               // 举报按钮：所有用户（包括管理员）都可以使用
               SizedBox(
                 width: double.infinity,
@@ -961,26 +1096,203 @@ class _FloorMapPageState extends State<FloorMapPage> {
     );
   }
 
+  Future<void> _showLatestReportImages(String seatId) async {
+    try {
+      final anomalies = await _apiService.getAnomalies();
+      final anomaly = anomalies.firstWhere(
+        (a) => a.seatId == seatId,
+        orElse: () => AnomalyResponse(
+          seatId: seatId,
+          floorId: '',
+          hasPower: false,
+          isEmpty: false,
+          isReported: false,
+          isMalicious: false,
+          seatColor: '',
+          adminColor: '',
+          lastReportId: null,
+        ),
+      );
+      if (anomaly.lastReportId == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(t('no_report_images'))),
+          );
+        }
+        return;
+      }
+
+      final report = await _apiService.getReport(anomaly.lastReportId!);
+      if (report.images.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(t('no_report_images'))),
+          );
+        }
+        return;
+      }
+
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppColors.dialogBackground,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text(t('latest_report_images')),
+          content: SizedBox(
+            width: 320,
+            height: 260,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: report.images.length,
+              itemBuilder: (context, index) {
+                final imageUrl = '${ApiConfig.baseUrl}/${report.images[index]}';
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.network(
+                      imageUrl,
+                      width: 300,
+                      height: 240,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          width: 300,
+                          height: 240,
+                          color: Colors.grey[300],
+                          child: const Icon(Icons.broken_image, size: 48),
+                        );
+                      },
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(t('confirm')),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${t('loading_images_failed')}: $e')),
+        );
+      }
+    }
+  }
+
   void _showReportDialog(Seat seat) {
     final controller = TextEditingController();
-    bool submitting = false;
     List<XFile> selectedImages = [];
     final ImagePicker picker = ImagePicker();
 
     showDialog(
       context: context,
+      barrierDismissible: false, // 禁止在提交时意外关闭
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
           Future<void> pickImage(ImageSource source) async {
             try {
-              final XFile? image = await picker.pickImage(source: source, imageQuality: 50);
-              if (image != null) {
-                setDialogState(() {
-                  selectedImages.add(image);
-                });
+              debugPrint('DEBUG pickImage: Starting image picker, source=$source');
+              
+              // Web平台特殊处理：gallery在Web上可能不可用，使用camera或直接文件选择
+              XFile? image;
+              if (kIsWeb && source == ImageSource.gallery) {
+                // Web平台：使用文件选择器
+                try {
+                  image = await picker.pickImage(
+                    source: ImageSource.gallery,
+                    imageQuality: 50,
+                  );
+                } catch (e) {
+                  debugPrint('DEBUG pickImage: Web gallery failed, trying alternative: $e');
+                  // 如果gallery失败，尝试使用文件选择
+                  image = await picker.pickImage(
+                    source: ImageSource.gallery,
+                    imageQuality: 50,
+                  );
+                }
+              } else {
+                image = await picker.pickImage(source: source, imageQuality: 50);
               }
-            } catch (e) {
-              debugPrint('Error picking image: $e');
+              
+              debugPrint('DEBUG pickImage: Image picker returned: ${image != null}');
+              
+              if (image != null) {
+                debugPrint('DEBUG pickImage: Image name=${image.name}, path=${image.path}');
+                
+                // 获取文件扩展名
+                String? actualExt;
+                if (image.name.isNotEmpty) {
+                  final nameExt = image.name.toLowerCase().split('.').last;
+                  if (nameExt != image.name.toLowerCase() && nameExt.isNotEmpty) {
+                    actualExt = nameExt;
+                  }
+                }
+                
+                // 如果从name获取失败，尝试从path获取
+                if (actualExt == null || actualExt.isEmpty) {
+                  final pathExt = image.path.toLowerCase().split('.').last;
+                  if (pathExt != image.path.toLowerCase() && pathExt.isNotEmpty) {
+                    actualExt = pathExt;
+                    debugPrint('DEBUG pickImage: Using extension from path: $actualExt');
+                  }
+                }
+                
+                // Web平台：如果没有扩展名，尝试从MIME类型推断
+                if ((actualExt == null || actualExt.isEmpty) && kIsWeb) {
+                  // Web平台可能没有扩展名，但我们仍然允许上传
+                  // 后端会处理文件类型验证
+                  debugPrint('DEBUG pickImage: Web platform, extension may be missing');
+                }
+                
+                if (actualExt != null && !['jpg', 'jpeg', 'png'].contains(actualExt)) {
+                  debugPrint('ERROR pickImage: Invalid extension: $actualExt');
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Only JPG, JPEG, and PNG formats are allowed'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                  return;
+                }
+                
+                debugPrint('DEBUG pickImage: Reading image bytes...');
+                final bytes = await image.readAsBytes();
+                debugPrint('DEBUG pickImage: Image size=${bytes.lengthInBytes} bytes');
+                
+                if (bytes.lengthInBytes > 5 * 1024 * 1024) {
+                  debugPrint('ERROR pickImage: Image too large');
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Image size too large. Max 5MB allowed.'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                  return;
+                }
+                
+                debugPrint('DEBUG pickImage: Adding image to selectedImages (current count: ${selectedImages.length})');
+                setDialogState(() {
+                  selectedImages.add(image!);
+                });
+                debugPrint('DEBUG pickImage: Image added successfully (new count: ${selectedImages.length})');
+              } else {
+                debugPrint('DEBUG pickImage: User cancelled or no image selected');
+              }
+            } catch (e, stackTrace) {
+              debugPrint('ERROR pickImage: Exception: $e');
+              debugPrint('ERROR pickImage: Stack trace: $stackTrace');
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('Failed to pick image: $e')),
@@ -989,20 +1301,38 @@ class _FloorMapPageState extends State<FloorMapPage> {
             }
           }
 
+          final screenWidth = MediaQuery.of(context).size.width;
+          final screenHeight = MediaQuery.of(context).size.height;
+          
           return AlertDialog(
             backgroundColor: AppColors.dialogBackground,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            insetPadding: EdgeInsets.symmetric(
+              horizontal: screenWidth < 400 ? 16 : 24,
+              vertical: 24,
+            ),
             title: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(t('report_title'), style: const TextStyle(fontWeight: FontWeight.bold)),
-                IconButton(icon: const Icon(Icons.close, color: Colors.black54), onPressed: () => Navigator.pop(context)),
+                Expanded(
+                  child: Text(
+                    t('report_title'),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.black54),
+                  onPressed: () => Navigator.pop(context),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
               ],
             ),
             content: ConstrainedBox(
               constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width - 40,
-                maxHeight: MediaQuery.of(context).size.height * 0.8,
+                maxWidth: screenWidth < 400 ? screenWidth - 32 : 400,
+                maxHeight: screenHeight * 0.75,
               ),
               child: SingleChildScrollView(
                 child: Column(
@@ -1013,6 +1343,7 @@ class _FloorMapPageState extends State<FloorMapPage> {
                     const SizedBox(height: 15),
                     TextField(
                       controller: controller,
+                      enabled: true,
                       decoration: InputDecoration(
                         filled: true,
                         fillColor: Colors.white.withValues(alpha: 0.5),
@@ -1104,24 +1435,24 @@ class _FloorMapPageState extends State<FloorMapPage> {
                                   ),
                                 ),
                                 Positioned(
-                                  right: 4,
-                                  top: 0,
-                                  child: GestureDetector(
-                                    onTap: () {
-                                      setDialogState(() {
-                                        selectedImages.removeAt(index);
-                                      });
-                                    },
-                                    child: Container(
-                                      padding: const EdgeInsets.all(2),
-                                      decoration: const BoxDecoration(
-                                        color: Colors.red,
-                                        shape: BoxShape.circle,
+                                    right: 4,
+                                    top: 0,
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        setDialogState(() {
+                                          selectedImages.removeAt(index);
+                                        });
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.all(2),
+                                        decoration: const BoxDecoration(
+                                          color: Colors.red,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(Icons.close, size: 14, color: Colors.white),
                                       ),
-                                      child: const Icon(Icons.close, size: 14, color: Colors.white),
                                     ),
                                   ),
-                                ),
                               ],
                             );
                           },
@@ -1138,58 +1469,139 @@ class _FloorMapPageState extends State<FloorMapPage> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
-                        onPressed: submitting ? null : () async {
-                          setDialogState(() => submitting = true);
-                          try {
-                            final prefs = await SharedPreferences.getInstance();
-                            final userId = prefs.getInt('user_id');
-                            if (userId == null) {
-                              throw Exception('User ID not found');
+                        onPressed: () async {
+                            debugPrint('DEBUG: Submit button pressed');
+                            
+                            final successMsg = t('success_msg');
+                            final reportSubmittedMsg = t('report_submitted');
+                            
+                            // 获取 rootNavigator，用于显示 Loading（避免 context 失效）
+                            final rootNavigator = Navigator.of(context, rootNavigator: true);
+                            final scaffoldMessenger = ScaffoldMessenger.of(context);
+                            
+                            // 1. 立即关闭 Dialog，避免状态管理问题
+                            Navigator.of(context).pop();
+                            
+                            // 2. 等待 Dialog 完全关闭（避免渲染冲突）
+                            await Future.delayed(const Duration(milliseconds: 150));
+                            
+                            // 3. 显示全屏 Loading（使用 rootNavigator）
+                            if (rootNavigator.mounted) {
+                              showDialog(
+                                context: rootNavigator.context,
+                                barrierDismissible: false,
+                                barrierColor: Colors.black54,
+                                builder: (loadingContext) => Center(
+                                  child: Card(
+                                    color: Colors.white,
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(24.0),
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const CircularProgressIndicator(),
+                                          const SizedBox(height: 16),
+                                          Text(t('uploading'), style: const TextStyle(fontSize: 16)),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
                             }
                             
-                            await _apiService.submitReport(
-                              seatId: seat.id,
-                              reporterId: userId,
-                              text: controller.text.trim().isEmpty ? null : controller.text.trim(),
-                              images: selectedImages.isEmpty ? null : selectedImages,
-                            );
-                            
-                            if (context.mounted) {
-                              Navigator.pop(context);
+                            try {
+                              debugPrint('DEBUG: Getting user ID...');
+                              final prefs = await SharedPreferences.getInstance();
+                              final userId = prefs.getInt('user_id');
+                              if (userId == null) {
+                                throw Exception('User ID not found');
+                              }
+                              debugPrint('DEBUG: User ID: $userId');
                               
-                              // 如果是F3或F4的座位，更新伪数据状态为suspicious
+                              // F3/F4 演示模式
+                              if (seat.id.startsWith('F3') || seat.id.startsWith('F4')) {
+                                debugPrint('DEBUG: Demo mode (F3/F4)');
+                                await Future.delayed(const Duration(seconds: 2));
+                              } else {
+                                debugPrint('DEBUG: Calling submitReport API...');
+                                await _apiService.submitReport(
+                                  seatId: seat.id,
+                                  reporterId: userId,
+                                  text: controller.text.trim().isEmpty ? null : controller.text.trim(),
+                                  images: selectedImages.isEmpty ? null : selectedImages,
+                                );
+                                debugPrint('DEBUG: submitReport API call completed');
+                              }
+                              
+                              // 3. 关闭 Loading
+                              if (rootNavigator.canPop()) {
+                                rootNavigator.pop();
+                              }
+                              
+                              // 4. 等待 Loading 关闭
+                              await Future.delayed(const Duration(milliseconds: 100));
+                              
+                              // 5. 显示成功提示
+                              if (scaffoldMessenger.mounted) {
+                                scaffoldMessenger.showSnackBar(
+                                  SnackBar(
+                                    content: Row(
+                                      children: [
+                                        const Icon(Icons.check_circle, color: Colors.white, size: 24),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                successMsg,
+                                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                                              ),
+                                              Text(
+                                                reportSubmittedMsg,
+                                                style: const TextStyle(fontSize: 14, color: Colors.white70),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    backgroundColor: AppColors.green,
+                                    duration: const Duration(seconds: 4),
+                                    behavior: SnackBarBehavior.floating,
+                                    margin: const EdgeInsets.all(16),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  ),
+                                );
+                              }
+                              
                               _updateMockSeatStatus(seat.id, 'suspicious');
-                              
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(t('success_msg')),
-                                  backgroundColor: AppColors.green,
-                                  behavior: SnackBarBehavior.floating,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                ),
-                              );
-                              // 刷新当前楼层数据
                               _loadData();
+                              
+                            } catch (e) {
+                              // 关闭 Loading
+                              if (rootNavigator.canPop()) {
+                                rootNavigator.pop();
+                              }
+                              
+                              // 等待 Loading 关闭
+                              await Future.delayed(const Duration(milliseconds: 100));
+                              
+                              // 显示错误提示
+                              if (scaffoldMessenger.mounted) {
+                                scaffoldMessenger.showSnackBar(
+                                  SnackBar(
+                                    content: Text('${t('submit_failed')}: $e'),
+                                    backgroundColor: Colors.red,
+                                    duration: const Duration(seconds: 3),
+                                  ),
+                                );
+                              }
                             }
-                          } catch (e) {
-                            setDialogState(() => submitting = false);
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Failed to submit report: $e'),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
-                            }
-                          }
-                        },
-                        child: submitting
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black87),
-                              )
-                            : Text(t('submit'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                          },
+                        child: Text(t('submit'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                       ),
                     ),
                   ],
@@ -1211,35 +1623,6 @@ class _FloorMapPageState extends State<FloorMapPage> {
           const SizedBox(width: 10),
           Text(value, style: TextStyle(color: color ?? Colors.black87, fontWeight: FontWeight.bold, fontSize: 16)),
         ],
-      ),
-    );
-  }
-
-  Widget _buildRefreshButton() {
-    return Container(
-      width: 56,
-      height: 56,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: IconButton(
-        icon: _loading
-            ? const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black87),
-              )
-            : const Icon(Icons.refresh, color: Colors.black87),
-        onPressed: _loading ? null : _refreshCurrentFloor,
-        tooltip: t('refresh') ?? '刷新',
       ),
     );
   }

@@ -49,26 +49,50 @@ class Seat {
     
     String status = originalStatus;
     String? previousStatus;
+    String? apiColor;
     
     // 如果是管理员且 (is_malicious 或 is_reported)，显示为 suspicious
-    if (isAdmin && (apiSeat.isMalicious || apiSeat.isReported)) {
-      status = 'suspicious';
-      previousStatus = originalStatus; // 保存举报前的状态
-    } else if (!isAdmin && (apiSeat.isMalicious || apiSeat.isReported)) {
+    if (isAdmin) {
+      if (apiSeat.isMalicious) {
+        status = 'malicious'; // 确认为恶意占用 -> 红色
+        previousStatus = originalStatus;
+      } else if (apiSeat.isReported) {
+        status = 'suspicious'; // 被举报 -> 黄色
+        previousStatus = originalStatus;
+      }
+      // 管理员使用 adminColor
+      apiColor = apiSeat.adminColor;
+    } else {
       // 非管理员用户：如果座位被举报，保存原始状态但不显示为suspicious
-      previousStatus = originalStatus;
-      status = originalStatus; // 非管理员显示原始状态
+      if (apiSeat.isMalicious || apiSeat.isReported) {
+        previousStatus = originalStatus;
+        status = originalStatus; // 非管理员显示原始状态
+        // 非管理员用户：被举报的座位应该显示举报前的颜色，而不是黄色
+        // 根据 originalStatus 计算颜色，而不是使用后端返回的 seatColor（可能是黄色）
+        switch (originalStatus) {
+          case 'occupied':
+            apiColor = '#929292'; // 灰色
+            break;
+          case 'has_power':
+            apiColor = '#00A1FF'; // 蓝色
+            break;
+          case 'empty':
+          default:
+            apiColor = '#60D937'; // 绿色
+            break;
+        }
+      } else {
+        // 没有被举报，正常使用后端返回的颜色
+        apiColor = apiSeat.seatColor;
+      }
     }
-
-    // 使用管理员颜色或学生颜色
-    final color = isAdmin ? apiSeat.adminColor : apiSeat.seatColor;
 
     return Seat(
       id: apiSeat.seatId,
       status: status,
       top: top,
       left: left,
-      apiColor: color,
+      apiColor: apiColor,
       previousStatus: previousStatus,
     );
   }
@@ -95,25 +119,44 @@ class Seat {
     }
   }
   
-  // 获取显示状态（对于非管理员用户，如果是suspicious则显示previousStatus）
+  // 获取显示状态（对于非管理员用户，如果座位被举报则显示previousStatus）
   String getDisplayStatus(bool isAdmin) {
-    if (!isAdmin && status == 'suspicious' && previousStatus != null) {
-      return previousStatus!;
+    // 非管理员用户：如果座位状态是suspicious（被举报），显示举报前的状态
+    if (!isAdmin) {
+      // 如果状态是suspicious，说明座位被举报了
+      if (status == 'suspicious' || status == 'malicious') {
+        // 如果有previousStatus，使用previousStatus
+        if (previousStatus != null) {
+          return previousStatus!;
+        }
+        // 如果没有previousStatus，假设举报前是occupied
+        return 'occupied';
+      }
     }
+    // 管理员用户或非suspicious状态，使用正常状态
     return status;
   }
   
-  // 获取显示颜色（对于非管理员用户，如果是suspicious则显示previousStatus对应的颜色）
+  // 获取显示颜色（对于非管理员用户，如果座位被举报则显示举报前的颜色）
   Color getDisplayColor(bool isAdmin) {
-    if (!isAdmin && status == 'suspicious' && previousStatus != null) {
-      // 使用previousStatus对应的颜色
-      switch (previousStatus!) {
-        case 'occupied': return AppColors.grey;
-        case 'has_power': return AppColors.blue;
-        case 'empty':
-        default: return AppColors.green;
+    // 非管理员用户：如果座位状态是suspicious（被举报），显示举报前的颜色
+    if (!isAdmin) {
+      // 如果状态是suspicious，说明座位被举报了
+      if (status == 'suspicious' || status == 'malicious') {
+        // 如果有previousStatus，使用previousStatus对应的颜色
+        if (previousStatus != null) {
+          switch (previousStatus!) {
+            case 'occupied': return AppColors.grey;
+            case 'has_power': return AppColors.blue;
+            case 'empty':
+            default: return AppColors.green;
+          }
+        }
+        // 如果没有previousStatus，假设举报前是occupied（灰色）
+        return AppColors.grey;
       }
     }
+    // 管理员用户或非suspicious状态，使用正常颜色
     return color;
   }
 }

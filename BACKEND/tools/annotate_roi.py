@@ -13,7 +13,7 @@ import numpy as np
 def run_yolo_overlay(frame: np.ndarray):
 	try:
 		# Lazy import to avoid startup failures if torch is not ready
-		from backend.services.yolo_service import YOLODetector
+		from library.backend.services.yolo_service import YOLODetector
 		det = YOLODetector()
 		dets = det.detect_frame(frame)
 		for d in dets:

@@ -1,20 +1,16 @@
 from __future__ import annotations
 
-import time
 from typing import List, Optional
-
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from ..auth import require_admin
 from ..db import get_db
-from ..models import Report, Seat
+from ..models import Seat, Report
 from ..schemas import AnomalyOut, ReportOut, SeatOut
-from ..services.response_builder import (
-	build_anomaly_out,
-	build_seat_out,
-	get_or_404,
-)
+from ..services.color import compute_seat_color, compute_admin_color
+import time
+from ..auth import require_admin
+
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)])
 
@@ -24,92 +20,123 @@ def list_anomalies(
 	floor: Optional[str] = Query(default=None),
 	db: Session = Depends(get_db),
 ) -> List[AnomalyOut]:
-	# 修改查询条件：不仅包含被举报的，也包含被系统标记为恶意的，或者系统自动推送的
-	q = db.query(Seat).filter(
-		(Seat.is_reported == True) | 
-		(Seat.is_malicious == True) |
-		(Seat.is_system_reported == True)
-	)
+	q = db.query(Seat).filter((Seat.is_reported == True) | (Seat.is_malicious == True))
 	if floor:
 		q = q.filter(Seat.floor_id == floor)
 	seats = q.all()
-	return [build_anomaly_out(s, db) for s in seats]
+	out: List[AnomalyOut] = []
+	for s in seats:
+		last_report = (
+			db.query(Report)
+			.filter(Report.seat_id == s.seat_id)
+			.order_by(Report.created_at.desc())
+			.first()
+		)
+		base_color = compute_seat_color(s.is_empty, s.has_power, s.is_reported)
+		admin_color = compute_admin_color(base_color, s.is_malicious, s.is_empty, s.has_power)
+		out.append(
+			AnomalyOut(
+				seat_id=s.seat_id,
+				floor_id=s.floor_id,
+				has_power=s.has_power,
+				is_empty=s.is_empty,
+				is_reported=s.is_reported,
+				is_malicious=s.is_malicious,
+				seat_color=base_color,
+				admin_color=admin_color,
+				last_report_id=last_report.id if last_report else None,
+			)
+		)
+	return out
 
 
 @router.get("/reports/{report_id}", response_model=ReportOut)
 def get_report(report_id: int, db: Session = Depends(get_db)) -> ReportOut:
-	report = get_or_404(db, Report, report_id)
-	return ReportOut.model_validate(report)
+	r = db.query(Report).filter(Report.id == report_id).first()
+	if not r:
+		raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="report not found")
+	return ReportOut.model_validate(r)
 
 
 @router.post("/reports/{report_id}/confirm", response_model=AnomalyOut)
 def confirm_toggle(report_id: int, db: Session = Depends(get_db)) -> AnomalyOut:
-	report = get_or_404(db, Report, report_id)
-	seat = get_or_404(db, Seat, report.seat_id, id_field=Seat.seat_id)
+	r = db.query(Report).filter(Report.id == report_id).first()
+	if not r:
+		raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="report not found")
+	seat = db.query(Seat).filter(Seat.seat_id == r.seat_id).first()
+	if not seat:
+		raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="seat not found")
 
-	# 确认异常（勾选）：
-	# 场景：确实有人占座（异常），或者管理员判定这是个违规行为。
-	# 动作：清理异常状态，将座位恢复为“空闲”状态（赶走占座者，让座位变回绿色/蓝色供他人使用）。
-	#      同时标记举报为"confirmed"。
-	#      
-	# 注意：确认后，座位会从异常列表中消失（因为所有异常标记都被清除），
-	#      这是正常行为，表示问题已处理完毕。
-	
-	seat.is_malicious = False
-	seat.is_reported = False
-	seat.is_system_reported = False # 清除系统推送标记
-	seat.is_empty = True  # 恢复为空闲
-	
-	report.status = "confirmed"
-	
+	# 取对色：若当前(管理员端)非黄 -> 标黄；若已黄 -> 变回底色（清黄）
+	new_is_malicious = not seat.is_malicious
+	seat.is_malicious = new_is_malicious
+	r.status = "confirmed" if new_is_malicious else "dismissed"
 	db.add(seat)
-	db.add(report)
+	db.add(r)
 	db.commit()
 	db.refresh(seat)
-	
-	# 返回更新后的座位信息（虽然它不再是异常，但前端需要这个响应来更新UI）
-	return build_anomaly_out(seat, db)
+
+	base_color = compute_seat_color(seat.is_empty, seat.has_power, seat.is_reported)
+	admin_color = compute_admin_color(base_color, seat.is_malicious, seat.is_empty, seat.has_power)
+	last_report = (
+		db.query(Report)
+		.filter(Report.seat_id == seat.seat_id)
+		.order_by(Report.created_at.desc())
+		.first()
+	)
+	return AnomalyOut(
+		seat_id=seat.seat_id,
+		floor_id=seat.floor_id,
+		has_power=seat.has_power,
+		is_empty=seat.is_empty,
+		is_reported=seat.is_reported,
+		is_malicious=seat.is_malicious,
+		seat_color=base_color,
+		admin_color=admin_color,
+		last_report_id=last_report.id if last_report else None,
+	)
 
 
 @router.delete("/anomalies/{seat_id}", response_model=AnomalyOut)
 def clear_anomaly(seat_id: str, db: Session = Depends(get_db)) -> AnomalyOut:
-	seat = get_or_404(db, Seat, seat_id, id_field=Seat.seat_id)
-
-	# 删除/驳回异常（叉掉）：
-	# 场景：座位是正常的（比如人只是暂时离开或正常使用），被人误举报了。
-	# 动作：清除举报标记，恢复座位原来的状态。
-	#      注意：我们并不完全知道"原来"是什么状态，但通常：
-	#      - 如果之前被标记为 malicious（黄色），说明管理员之前可能确认过，或者系统自动标记的。
-	#        现在人工驳回，说明其实没问题。
-	#      - 逻辑上，"没有异常" 意味着 "当前的使用状态是合法的"。
-	#      - 如果有人坐（is_empty=False），那就保持有人坐。
-	#      - 如果没人坐（is_empty=True），那就保持没人坐。
-	#      
-	#      *关键修改*：这里我们只清除 `is_reported` 和 `is_malicious` 标记，
-	#      **不修改** `is_empty` 的状态。
-	#      这样，如果它本身是空闲的，就还是空闲；如果本身是占用的，就还是占用。
-	#      这就实现了"空闲就空闲，有人使用就有人使用"的效果。
+	seat = db.query(Seat).filter(Seat.seat_id == seat_id).first()
+	if not seat:
+		raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="seat not found")
 
 	seat.is_reported = False
 	seat.is_malicious = False
-	seat.is_system_reported = False # 清除系统推送标记
-	
-	# 不修改 seat.is_empty，保持原状
-	
-	# 将相关的 pending 举报标记为 dismissed
+	# optional: set all pending reports to dismissed
 	db.query(Report).filter(Report.seat_id == seat_id, Report.status == "pending").update({"status": "dismissed"})
-	
 	db.add(seat)
 	db.commit()
 	db.refresh(seat)
 
-	return build_anomaly_out(seat, db)
+	base_color = compute_seat_color(seat.is_empty, seat.has_power, seat.is_reported)
+	admin_color = compute_admin_color(base_color, seat.is_malicious, seat.is_empty, seat.has_power)
+	last_report = (
+		db.query(Report)
+		.filter(Report.seat_id == seat.seat_id)
+		.order_by(Report.created_at.desc())
+		.first()
+	)
+	return AnomalyOut(
+		seat_id=seat.seat_id,
+		floor_id=seat.floor_id,
+		has_power=seat.has_power,
+		is_empty=seat.is_empty,
+		is_reported=seat.is_reported,
+		is_malicious=seat.is_malicious,
+		seat_color=base_color,
+		admin_color=admin_color,
+		last_report_id=last_report.id if last_report else None,
+	)
 
 
 @router.post("/seats/{seat_id}/lock", response_model=SeatOut)
 def lock_seat(seat_id: str, minutes: int = 5, db: Session = Depends(get_db)) -> SeatOut:
-	seat = get_or_404(db, Seat, seat_id, id_field=Seat.seat_id)
-	
+	seat = db.query(Seat).filter(Seat.seat_id == seat_id).first()
+	if not seat:
+		raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="seat not found")
 	now = int(time.time())
 	if minutes < 0:
 		minutes = 0
@@ -118,4 +145,18 @@ def lock_seat(seat_id: str, minutes: int = 5, db: Session = Depends(get_db)) -> 
 	db.commit()
 	db.refresh(seat)
 
-	return build_seat_out(seat)
+	base_color = compute_seat_color(seat.is_empty, seat.has_power, seat.is_reported)
+	admin_color = compute_admin_color(base_color, seat.is_malicious, seat.is_empty, seat.has_power)
+	return SeatOut(
+		seat_id=seat.seat_id,
+		floor_id=seat.floor_id,
+		has_power=seat.has_power,
+		is_empty=seat.is_empty,
+		is_reported=seat.is_reported,
+		is_malicious=seat.is_malicious,
+		lock_until_ts=seat.lock_until_ts,
+		seat_color=base_color,
+		admin_color=admin_color,
+	)
+
+
