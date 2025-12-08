@@ -36,12 +36,12 @@ build/
 .env
 .env.local
 
-# YOLO weights (too large for git)
-yolov11/weights/*.pt
+# YOLO weights (managed by Git LFS)
+# yolov11/weights/*.pt  # Now tracked by Git LFS
 !yolov11/weights/.gitkeep
 
-# Input videos (too large)
-input/**/*.mp4
+# Input videos (test videos managed by Git LFS, other formats still ignored)
+# input/**/*.mp4  # Test videos now tracked by Git LFS
 input/**/*.avi
 input/**/*.mov
 input/**/*.mkv
