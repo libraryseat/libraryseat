@@ -7,36 +7,187 @@ A full-stack application for managing library seats with real-time detection, re
 ```
 libraryseat/
 ├── README.md                 # Project documentation
-├── start_frontend.sh         # Frontend startup script
-├── start_backend.sh          # Backend startup script
-├── FRONTEND/                 # Flutter frontend application
-│   ├── lib/                  # Flutter source code
-│   │   ├── config/           # Configuration (API config)
-│   │   ├── models/           # Data models
-│   │   ├── pages/            # UI pages
-│   │   ├── services/         # API services
-│   │   └── utils/            # Utilities (translations)
-│   ├── android/              # Android native code
-│   ├── ios/                  # iOS native code
-│   └── pubspec.yaml          # Flutter dependencies
-└── BACKEND/                  # FastAPI backend service
-    ├── backend/              # Backend source code
-    │   ├── routes/           # API routes
-    │   ├── services/         # Business logic services
-    │   ├── models.py         # Database models
-    │   ├── schemas.py        # Pydantic schemas
-    │   └── main.py           # Application entry point
-    ├── config/               # Configuration files
-    │   ├── floors/           # Floor ROI configuration
-    │   ├── report/           # Report image storage
-    │   └── roi.schema.json   # ROI schema definition
-    ├── yolov11/              # YOLOv11 model code and weights
-    ├── tools/                # Utility scripts
-    │   ├── annotate_roi.py   # ROI annotation tool
-    │   └── export.py         # Data export tool
-    └── outputs/              # Exported data
-        ├── YYYY-MM-DD/       # Daily exports
-        └── monthly/          # Monthly exports
+├── requirements.txt         # Root-level Python dependencies
+├── start_frontend.sh        # Frontend startup script
+├── start_backend.sh         # Backend startup script
+│
+├── FRONTEND/                # Flutter frontend application
+│   ├── lib/                 # Flutter source code
+│   │   ├── main.dart        # Application entry point
+│   │   ├── config/          # Configuration files
+│   │   │   └── api_config.dart      # API endpoint configuration
+│   │   ├── models/          # Data models
+│   │   │   └── seat_model.dart      # Seat and floor data models
+│   │   ├── pages/           # UI pages
+│   │   │   ├── login_page.dart      # Login and registration page
+│   │   │   ├── floor_map_page.dart  # Main floor map visualization
+│   │   │   └── admin_page.dart      # Admin anomaly management page
+│   │   ├── services/        # API services
+│   │   │   └── api_service.dart     # HTTP client and API methods
+│   │   └── utils/           # Utilities
+│   │       └── translations.dart    # Multi-language translation strings
+│   │
+│   │
+│   ├── ios/                 # iOS platform configuration
+│   │   ├── Flutter/
+│   │   │   ├── AppFrameworkInfo.plist
+│   │   │   ├── Debug.xcconfig
+│   │   │   ├── Release.xcconfig
+│   │   │   ├── Generated.xcconfig
+│   │   │   └── Flutter.podspec
+│   │   ├── Podfile          # CocoaPods dependencies
+│   │   ├── Podfile.lock
+│   │   ├── Runner/
+│   │   │   ├── AppDelegate.swift
+│   │   │   ├── Info.plist
+│   │   │   ├── Assets.xcassets/    # App icons and launch images
+│   │   │   ├── Base.lproj/         # Storyboard files
+│   │   │   ├── GeneratedPluginRegistrant.h
+│   │   │   ├── GeneratedPluginRegistrant.m
+│   │   │   └── Runner-Bridging-Header.h
+│   │   ├── Runner.xcodeproj/       # Xcode project files
+│   │   ├── Runner.xcworkspace/     # Xcode workspace
+│   │   └── RunnerTests/            # iOS test files
+│   │
+│   ├── macos/               # macOS platform configuration
+│   │   ├── Flutter/
+│   │   ├── Podfile
+│   │   ├── Runner/
+│   │   │   ├── AppDelegate.swift
+│   │   │   ├── MainFlutterWindow.swift
+│   │   │   ├── Assets.xcassets/
+│   │   │   ├── Configs/
+│   │   │   ├── Info.plist
+│   │   │   └── Base.lproj/
+│   │   ├── Runner.xcodeproj/
+│   │   └── Runner.xcworkspace/
+│   │
+│   ├── windows/             # Windows platform configuration
+│   │   ├── CMakeLists.txt
+│   │   ├── flutter/         # Flutter Windows engine files
+│   │   └── runner/          # Windows runner application
+│   │
+│   ├── config/              # Frontend configuration files
+│   │   ├── floors/          # Floor configuration JSON files
+│   │   │   ├── F1.json
+│   │   │   ├── F2.json
+│   │   │   └── README.md
+│   │   ├── db.sqlite3       # Local database (if used)
+│   │   └── roi.schema.json  # ROI schema definition
+│   │
+│   ├── outputs/             # Frontend output files
+│   │   ├── 2025-11-21/      # Daily exports
+│   │   └── monthly/         # Monthly exports
+│   │
+│   ├── build/               # Build output directory (generated)
+│   │
+│   ├── analysis_options.yaml # Dart analyzer configuration
+│   ├── pubspec.yaml         # Flutter dependencies and metadata
+│   ├── pubspec.lock         # Locked dependency versions
+│   ├── requirements.txt     # Python dependencies (if any)
+│   └── flutter_application_1.iml
+│
+└── BACKEND/                 # FastAPI backend service
+    ├── backend/             # Backend source code
+    │   ├── __init__.py
+    │   ├── main.py          # FastAPI application entry point
+    │   ├── db.py            # Database connection and session management
+    │   ├── models.py        # SQLAlchemy database models
+    │   ├── schemas.py       # Pydantic request/response schemas
+    │   ├── auth.py          # Authentication utilities
+    │   ├── manage_users.py  # CLI tool for user management
+    │   ├── scheduler.py     # APScheduler for scheduled tasks
+    │   │
+    │   ├── routes/          # API route handlers
+    │   │   ├── __init__.py
+    │   │   ├── auth.py      # Authentication endpoints (login, register, logout)
+    │   │   ├── health.py    # Health check endpoints
+    │   │   ├── seats.py     # Seat and floor data endpoints
+    │   │   ├── reports.py   # Report submission endpoints
+    │   │   └── admin.py     # Admin management endpoints
+    │   │
+    │   ├── services/        # Business logic services
+    │   │   ├── __init__.py
+    │   │   ├── yolo_service.py    # YOLOv11 detection service
+    │   │   ├── yolo_util.py       # YOLO utility functions
+    │   │   ├── color.py           # Seat color determination logic
+    │   │   ├── roi_loader.py      # ROI configuration loader
+    │   │   └── rollover.py        # Daily/monthly data rollover
+    │   │
+    │   └── config/          # Backend runtime config
+    │       └── report/      # Report image storage
+    │           ├── 1/       # Report ID directories
+    │           ├── 2/
+    │           └── 5/
+    │
+    ├── config/              # Configuration files
+    │   ├── db.sqlite3       # SQLite database file
+    │   ├── floors/          # Floor ROI configuration JSON files
+    │   │   ├── F1.json
+    │   │   ├── F2.json
+    │   │   └── README.md
+    │   ├── report/          # Report image storage
+    │   │   ├── 51/          # Report ID directories
+    │   │   └── 52/
+    │   └── roi.schema.json  # ROI schema definition
+    │
+    ├── yolov11/             # YOLOv11 model implementation
+    │   ├── __init__.py
+    │   ├── main.py          # YOLO model main file
+    │   ├── main.sh          # YOLO execution script
+    │   ├── README.md
+    │   ├── nets/            # Neural network architecture
+    │   │   ├── __init__.py
+    │   │   └── nn.py        # Network definition
+    │   ├── utils/           # YOLO utilities
+    │   │   ├── __init__.py
+    │   │   ├── args.yaml    # YOLO configuration
+    │   │   ├── augment.py   # Data augmentation
+    │   │   ├── dataset.py   # Dataset handling
+    │   │   └── util.py      # Utility functions
+    │   └── weights/         # YOLO model weights
+    │       └── yolo11x.pt   # Pre-trained model weights
+    │
+    ├── tools/               # Utility scripts
+    │   ├── annotate_roi.py  # ROI annotation tool for video frames
+    │   ├── export.py        # Data export tool
+    │   └── readme.txt       # Tools documentation
+    │
+    ├── input/               # Input video files
+    │   ├── single/          # Single frame test images
+    │   │   ├── 0.jpg
+    │   │   ├── 1.jpg
+    │   │   ├── 2.jpg
+    │   │   ├── 3.jpg
+    │   │   ├── 4.jpg
+    │   │   └── 5.jpg
+    │   └── test/            # Test video files
+    │       ├── F1.mp4       # Floor 1 video stream
+    │       └── F2.mp4       # Floor 2 video stream
+    │
+    ├── outputs/             # Exported data
+    │   ├── 2025-12-07/      # Daily exports by date
+    │   │   └── daily_empty.txt
+    │   ├── 2025-12-08/
+    │   │   └── daily_empty.txt
+    │   └── monthly/         # Monthly exports
+    │
+    ├── fuzzing/             # Fuzzing tests directory
+    │   ├── README.md        # Fuzzing directory guide
+    │   ├── FUZZING.md       # Fuzzing test usage guide
+    │   ├── FUZZING_REPORT.md # Test report documentation
+    │   ├── fuzz_roi_config.py      # Validation logic test script
+    │   ├── fuzz_load_floor_config.py # File I/O test script
+    │   ├── generate_comprehensive_report.py # Report generator
+    │   ├── run_fuzz.sh      # Run validation logic test
+    │   ├── run_fuzz_load.sh # Run file I/O test
+    │   ├── comprehensive_fuzzing_report.html # Test report (HTML)
+    │   ├── fuzz_corpus/     # Validation test corpus
+    │   ├── fuzz_corpus_load/ # File I/O test corpus
+    │   └── fuzz_temp_floors/ # Temporary test files
+    ├── venv/                # Local Python virtual environment for fuzzing
+    ├── reset_admin.py       # Admin account reset script
+    └── requirements.txt     # Python dependencies
 ```
 
 ## Quick Start
