@@ -6,50 +6,50 @@ A full-stack application for managing library seats with real-time detection, re
 
 ```
 libraryseat/
-├── README.md                 # Project documentation
-├── requirements.txt         # Root-level Python dependencies
-├── start_frontend.sh        # Frontend startup script
-├── start_backend.sh         # Backend startup script
+├── README.md                         # Project documentation
+├── requirements.txt                  # Root-level Python dependencies
+├── start_frontend.sh                 # Frontend startup script
+├── start_backend.sh                  # Backend startup script
 │
-├── FRONTEND/                # Flutter frontend application
-│   ├── lib/                 # Flutter source code
-│   │   ├── main.dart        # Application entry point
-│   │   ├── config/          # Configuration files
-│   │   │   └── api_config.dart      # API endpoint configuration
-│   │   ├── models/          # Data models
-│   │   │   └── seat_model.dart      # Seat and floor data models
-│   │   ├── pages/           # UI pages
-│   │   │   ├── login_page.dart      # Login and registration page
-│   │   │   ├── floor_map_page.dart  # Main floor map visualization
-│   │   │   └── admin_page.dart      # Admin anomaly management page
-│   │   ├── services/        # API services
-│   │   │   └── api_service.dart     # HTTP client and API methods
-│   │   └── utils/           # Utilities
-│   │       └── translations.dart    # Multi-language translation strings
+├── FRONTEND/                         # Flutter frontend application
+│   ├── lib/                          # Flutter source code
+│   │   ├── main.dart                 # Application entry point
+│   │   ├── config/                   # Configuration files
+│   │   │   └── api_config.dart       # API endpoint configuration
+│   │   ├── models/                   # Data models
+│   │   │   └── seat_model.dart       # Seat and floor data models
+│   │   ├── pages/                    # UI pages
+│   │   │   ├── login_page.dart       # Login and registration page
+│   │   │   ├── floor_map_page.dart   # Main floor map visualization
+│   │   │   └── admin_page.dart       # Admin anomaly management page
+│   │   ├── services/                 # API services
+│   │   │   └── api_service.dart      # HTTP client and API methods
+│   │   └── utils/                    # Utilities
+│   │       └── translations.dart     # Multi-language translation strings
 │   │
 │   │
-│   ├── ios/                 # iOS platform configuration
+│   ├── ios/                          # iOS platform configuration
 │   │   ├── Flutter/
 │   │   │   ├── AppFrameworkInfo.plist
 │   │   │   ├── Debug.xcconfig
 │   │   │   ├── Release.xcconfig
 │   │   │   ├── Generated.xcconfig
 │   │   │   └── Flutter.podspec
-│   │   ├── Podfile          # CocoaPods dependencies
+│   │   ├── Podfile                   # CocoaPods dependencies
 │   │   ├── Podfile.lock
 │   │   ├── Runner/
 │   │   │   ├── AppDelegate.swift
 │   │   │   ├── Info.plist
-│   │   │   ├── Assets.xcassets/    # App icons and launch images
-│   │   │   ├── Base.lproj/         # Storyboard files
+│   │   │   ├── Assets.xcassets/     # App icons and launch images
+│   │   │   ├── Base.lproj/          # Storyboard files
 │   │   │   ├── GeneratedPluginRegistrant.h
 │   │   │   ├── GeneratedPluginRegistrant.m
 │   │   │   └── Runner-Bridging-Header.h
-│   │   ├── Runner.xcodeproj/       # Xcode project files
-│   │   ├── Runner.xcworkspace/     # Xcode workspace
-│   │   └── RunnerTests/            # iOS test files
+│   │   ├── Runner.xcodeproj/        # Xcode project files
+│   │   ├── Runner.xcworkspace/      # Xcode workspace
+│   │   └── RunnerTests/             # iOS test files
 │   │
-│   ├── macos/               # macOS platform configuration
+│   ├── macos/                       # macOS platform configuration
 │   │   ├── Flutter/
 │   │   ├── Podfile
 │   │   ├── Runner/
@@ -62,22 +62,22 @@ libraryseat/
 │   │   ├── Runner.xcodeproj/
 │   │   └── Runner.xcworkspace/
 │   │
-│   ├── windows/             # Windows platform configuration
+│   ├── windows/                      # Windows platform configuration
 │   │   ├── CMakeLists.txt
-│   │   ├── flutter/         # Flutter Windows engine files
-│   │   └── runner/          # Windows runner application
+│   │   ├── flutter/                  # Flutter Windows engine files
+│   │   └── runner/                   # Windows runner application
 │   │
-│   ├── config/              # Frontend configuration files
-│   │   ├── floors/          # Floor configuration JSON files
+│   ├── config/                       # Frontend configuration files
+│   │   ├── floors/                   # Floor configuration JSON files
 │   │   │   ├── F1.json
 │   │   │   ├── F2.json
 │   │   │   └── README.md
-│   │   ├── db.sqlite3       # Local database (if used)
-│   │   └── roi.schema.json  # ROI schema definition
+│   │   ├── db.sqlite3                # Local database (if used)
+│   │   └── roi.schema.json           # ROI schema definition
 │   │
-│   ├── outputs/             # Frontend output files
-│   │   ├── 2025-11-21/      # Daily exports
-│   │   └── monthly/         # Monthly exports
+│   ├── outputs/                      # Frontend output files
+│   │   ├── 2025-11-21/               # Daily exports
+│   │   └── monthly/                  # Monthly exports
 │   │
 │   ├── build/               # Build output directory (generated)
 │   │
