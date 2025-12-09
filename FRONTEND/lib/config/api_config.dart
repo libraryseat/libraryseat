@@ -16,9 +16,9 @@ class ApiConfig {
   // static const String baseUrl = 'http://127.0.0.1:8000';
   
   // 真机测试（使用 Mac 的局域网 IP）
-  // 当前 Mac IP: 192.168.1.106
+  // 当前 Mac IP: 192.168.1.104
   // 如果 IP 变化，请运行: ifconfig | grep "inet " | grep -v 127.0.0.1
-  static const String baseUrl = 'http://192.168.1.106:8000';
+  static const String baseUrl = 'http://192.168.1.104:8000';
   
   // 获取当前配置的 baseURL（用于调试）
   static String get currentBaseUrl => baseUrl;
