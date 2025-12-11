@@ -27,7 +27,6 @@ libraryseat/
 │   │   └── utils/                    # Utilities
 │   │       └── translations.dart     # Multi-language translation strings
 │   │
-│   │
 │   ├── ios/                          # iOS platform configuration
 │   │   ├── Flutter/
 │   │   │   ├── AppFrameworkInfo.plist
@@ -50,37 +49,8 @@ libraryseat/
 │   │   └── RunnerTests/             # iOS test files
 │   │
 │   ├── macos/                       # macOS platform configuration
-│   │   ├── Flutter/
-│   │   ├── Podfile
-│   │   ├── Runner/
-│   │   │   ├── AppDelegate.swift
-│   │   │   ├── MainFlutterWindow.swift
-│   │   │   ├── Assets.xcassets/
-│   │   │   ├── Configs/
-│   │   │   ├── Info.plist
-│   │   │   └── Base.lproj/
-│   │   ├── Runner.xcodeproj/
-│   │   └── Runner.xcworkspace/
-│   │
 │   ├── windows/                      # Windows platform configuration
-│   │   ├── CMakeLists.txt
-│   │   ├── flutter/                  # Flutter Windows engine files
-│   │   └── runner/                   # Windows runner application
-│   │
-│   ├── config/                       # Frontend configuration files
-│   │   ├── floors/                   # Floor configuration JSON files
-│   │   │   ├── F1.json
-│   │   │   ├── F2.json
-│   │   │   └── README.md
-│   │   ├── db.sqlite3                # Local database (if used)
-│   │   └── roi.schema.json           # ROI schema definition
-│   │
-│   ├── outputs/                      # Frontend output files
-│   │   ├── 2025-11-21/               # Daily exports
-│   │   └── monthly/                  # Monthly exports
-│   │
 │   ├── build/               # Build output directory (generated)
-│   │
 │   ├── analysis_options.yaml # Dart analyzer configuration
 │   ├── pubspec.yaml         # Flutter dependencies and metadata
 │   ├── pubspec.lock         # Locked dependency versions
@@ -106,75 +76,32 @@ libraryseat/
     │   │   ├── reports.py   # Report submission endpoints
     │   │   └── admin.py     # Admin management endpoints
     │   │
-    │   ├── services/        # Business logic services
-    │   │   ├── __init__.py
-    │   │   ├── yolo_service.py    # YOLOv11 detection service
-    │   │   ├── yolo_util.py       # YOLO utility functions
-    │   │   ├── color.py           # Seat color determination logic
-    │   │   ├── roi_loader.py      # ROI configuration loader
-    │   │   └── rollover.py        # Daily/monthly data rollover
-    │   │
-    │   └── config/          # Backend runtime config
-    │       └── report/      # Report image storage
-    │           ├── 1/       # Report ID directories
-    │           ├── 2/
-    │           └── 5/
+    │   └── services/        # Business logic services
+    │       ├── __init__.py
+    │       ├── yolo_service.py    # YOLOv11 detection service
+    │       ├── yolo_util.py       # YOLO utility functions
+    │       ├── color.py           # Seat color determination logic
+    │       ├── roi_loader.py      # ROI configuration loader
+    │       └── rollover.py        # Daily/monthly data rollover
     │
     ├── config/              # Configuration files
     │   ├── db.sqlite3       # SQLite database file
     │   ├── floors/          # Floor ROI configuration JSON files
-    │   │   ├── F1.json
-    │   │   ├── F2.json
-    │   │   └── README.md
     │   ├── report/          # Report image storage
-    │   │   ├── 51/          # Report ID directories
-    │   │   └── 52/
     │   └── roi.schema.json  # ROI schema definition
-    │
     ├── yolov11/             # YOLOv11 model implementation
-    │   ├── __init__.py
-    │   ├── main.py          # YOLO model main file
-    │   ├── main.sh          # YOLO execution script
-    │   ├── README.md
-    │   ├── nets/            # Neural network architecture
-    │   │   ├── __init__.py
-    │   │   └── nn.py        # Network definition
-    │   ├── utils/           # YOLO utilities
-    │   │   ├── __init__.py
-    │   │   ├── args.yaml    # YOLO configuration
-    │   │   ├── augment.py   # Data augmentation
-    │   │   ├── dataset.py   # Dataset handling
-    │   │   └── util.py      # Utility functions
     │   └── weights/         # YOLO model weights
     │       └── yolo11x.pt   # Pre-trained model weights
-    │
     ├── tools/               # Utility scripts
     │   ├── annotate_roi.py  # ROI annotation tool for video frames
     │   ├── export.py        # Data export tool
     │   └── readme.txt       # Tools documentation
-    │
     ├── input/               # Input video files
-    │   ├── single/          # Single frame test images
-    │   │   ├── 0.jpg
-    │   │   ├── 1.jpg
-    │   │   ├── 2.jpg
-    │   │   ├── 3.jpg
-    │   │   ├── 4.jpg
-    │   │   └── 5.jpg
-    │   └── test/            # Test video files
-    │       ├── F1.mp4       # Floor 1 video stream
-    │       └── F2.mp4       # Floor 2 video stream
-    │
     ├── outputs/             # Exported data
     │   ├── 2025-12-07/      # Daily exports by date
-    │   │   └── daily_empty.txt
-    │   ├── 2025-12-08/
-    │   │   └── daily_empty.txt
     │   └── monthly/         # Monthly exports
-    │
     ├── fuzzing/             # Fuzzing tests directory
     │   ├── README.md        # Fuzzing directory guide
-    │   ├── FUZZING.md       # Fuzzing test usage guide
     │   ├── FUZZING_REPORT.md # Test report documentation
     │   ├── fuzz_roi_config.py      # Validation logic test script
     │   ├── fuzz_load_floor_config.py # File I/O test script
@@ -185,7 +112,6 @@ libraryseat/
     │   ├── fuzz_corpus/     # Validation test corpus
     │   ├── fuzz_corpus_load/ # File I/O test corpus
     │   └── fuzz_temp_floors/ # Temporary test files
-    ├── venv/                # Local Python virtual environment for fuzzing
     ├── reset_admin.py       # Admin account reset script
     └── requirements.txt     # Python dependencies
 ```
