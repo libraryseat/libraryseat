@@ -504,6 +504,12 @@ curl -X POST \
   -F "images=@/path/to/image.jpg" \
   http://localhost:8000/reports
 ```
+### Contributors
+```bash
+Chenhao Guan @chenggu-123
+Yixuan LU @luyixuan1235
+Hongtian Chen @HongtianChan
+```
 
 ## License
 
