@@ -506,9 +506,9 @@ curl -X POST \
 ```
 ### Contributors
 ```bash
-Chenhao Guan @chenggu-123
-Yixuan LU @luyixuan1235
-Hongtian Chen @HongtianChan
+Chenhao Guan      @chenggu-123
+Yixuan LU         @luyixuan1235
+Hongtian Chen     @HongtianChan
 ```
 
 ## License
