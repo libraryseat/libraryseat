@@ -30,9 +30,6 @@ libraryseat/
     ├── config/              # Configuration files
     ├── yolov11/             # YOLOv11 model implementation
     ├── tools/               # Utility scripts
-    │   ├── annotate_roi.py  # ROI annotation tool for video frames
-    │   ├── export.py        # Data export tool
-    │   └── readme.txt       # Tools documentation
     ├── input/               # Input video files
     ├── outputs/             # Exported data
     ├── fuzzing/             # Fuzzing tests directory
